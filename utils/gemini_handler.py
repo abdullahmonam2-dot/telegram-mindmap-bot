@@ -2,25 +2,46 @@ import google.generativeai as genai
 import os
 import re
 import json
+import asyncio
+from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# Gemini Config
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-2.0-flash")
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+# Groq Config
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+GROQ_MODEL = "llama-3.3-70b-versatile" # Ultra-fast and smart
+
+async def get_groq_response(prompt, content=None, is_image=False):
+    """
+    Sends a prompt to Groq. Note: Groq Llama3 doesn't handle images natively 
+    like Gemini in this SDK version, so we provide text context.
+    """
+    try:
+        full_message = f"{prompt}\n\nالمحتوى المطلوب معالجته:\n{content if content else ''}"
+        
+        chat_completion = await asyncio.to_thread(
+            groq_client.chat.completions.create,
+            messages=[{"role": "user", "content": full_message}],
+            model=GROQ_MODEL,
+        )
+        return chat_completion.choices[0].message.content
+    except Exception as e:
+        print(f"GROQ Error: {e}")
+        return None
 
 async def get_gemini_response(prompt, content=None, is_image=False):
     """
-    Sends a prompt and optionally content (text or image) to Gemini asynchronously.
+    Sends a prompt to Gemini with an automatic Fallback to Groq if Gemini fails.
     """
     try:
+        # 1. Try Gemini (Primary)
         if is_image and content:
-            # content is the image path
-            img = {
-                'mime_type': 'image/jpeg', # Default to jpeg
-                'data': open(content, 'rb').read()
-            }
+            img = {'mime_type': 'image/jpeg', 'data': open(content, 'rb').read()}
             response = await model.generate_content_async([prompt, img])
         elif content:
             response = await model.generate_content_async(f"{prompt}\n\nContent:\n{content}")
@@ -28,20 +49,17 @@ async def get_gemini_response(prompt, content=None, is_image=False):
             response = await model.generate_content_async(prompt)
         
         return response.text
+        
     except Exception as e:
         error_msg = str(e).lower()
-        if "429" in error_msg or "quota" in error_msg:
-            print("GEMINI ERROR: Quota Exceeded.")
-            return "ERROR_QUOTA"
-        elif "403" in error_msg or "permission" in error_msg or "key" in error_msg:
-            print(f"GEMINI ERROR: API Key Issue: {e}")
-            return "ERROR_KEY"
-        elif "safety" in error_msg or "blocked" in error_msg:
-            print(f"GEMINI ERROR: Safety Block: {e}")
-            return "ERROR_SAFETY"
+        print(f"GEMINI FAILED: {e}. Switching to Groq fallback...")
         
-        print(f"GEMINI Error: {e}")
-        return f"ERROR_GENERIC: {str(e)}"
+        # Check for specific Gemini errors that should trigger fallback
+        if "404" in error_msg or "not found" in error_msg or "429" in error_msg or "quota" in error_msg:
+             return await get_groq_response(prompt, content)
+        
+        # General fallback for any other Gemini error
+        return await get_groq_response(prompt, content)
 
 async def generate_mindmap_json(content, is_image=False, translate=False):
     """
