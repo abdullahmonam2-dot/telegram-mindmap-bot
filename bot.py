@@ -88,6 +88,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_name = html.escape(user.first_name)
         
         main_keyboard = [
+            ["صناعة المخطط الذهني 🧠"],
             ["المدرب الدراسي الذكي 🤖"],
             ["عرض جدولي الدراسي الحالي 📋"],
             ["تواصل مع المطور 📩"]
@@ -119,6 +120,25 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     count = db.count_users()
     await update.message.reply_text(f"📊 إحصائيات البوت:\n\nعدد المستخدمين الكلي: {count}")
+
+# --- MINDMAP FLOW ---
+MM_WAIT_FILE = range(1)
+
+async def start_mm_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📥 **أهلاً بك في صانع الخرائط الذهنية!**\n\nيرجى إرسال (صورة، ملف PDF، أو ملف Word) الآن لأقوم بتحليله لك.",
+        parse_mode='Markdown'
+    )
+    return MM_WAIT_FILE
+
+async def handle_mm_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.document:
+        return await handle_document(update, context)
+    elif update.message.photo:
+        return await handle_photo(update, context)
+    else:
+        await update.message.reply_text("عذراً، يرجى إرسال ملف أو صورة فقط.")
+        return MM_WAIT_FILE
 
 # --- BROADCAST SYSTEM ---
 BROADCAST_TEXT = range(1)
@@ -216,6 +236,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await register_user(update)
+    
+    if not update.message.photo:
+        await update.message.reply_text("عذراً، لم أتمكن من العثور على الصورة. يرجى المحاولة مرة أخرى.")
+        return
+        
     msg = await update.message.reply_text("جاري استلام الصورة... ⏳")
     
     photo = update.message.photo[-1]
@@ -402,8 +427,16 @@ if __name__ == "__main__":
             states={SUPPORT_TEXT: [MessageHandler(filters.ALL & ~filters.COMMAND, forward_to_admin)]},
             fallbacks=[CommandHandler("cancel", cancel_comm)]
         )
+        
+        mm_handler = ConversationHandler(
+            entry_points=[MessageHandler(filters.Regex("^صناعة المخطط الذهني 🧠$"), start_mm_flow)],
+            states={MM_WAIT_FILE: [MessageHandler(filters.Document.ALL | filters.PHOTO, handle_mm_input)]},
+            fallbacks=[CommandHandler("cancel", cancel_comm)],
+        )
+        
         app.add_handler(broadcast_handler)
         app.add_handler(support_handler)
+        app.add_handler(mm_handler)
         app.add_handler(MessageHandler(filters.REPLY & filters.User(int(ADMIN_ID or 0)), handle_reply_to_user))
         
         app.add_handler(coach_conv_handler) # Register Study Coach Handler
