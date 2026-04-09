@@ -1,5 +1,6 @@
 import fitz  # PyMuPDF
 import os
+import docx
 
 def extract_text_from_pdf(pdf_path, max_pages=20):
     """ extracts text from the first max_pages of a PDF file. """

@@ -152,10 +152,16 @@ async def get_levels(update: Update, context: ContextTypes.DEFAULT_TYPE):
             plan
         )
         
-        await query.message.reply_text(
-            "✅ تم إنشاء جدولك الدراسي الذكي!\n\n" + plan,
-            parse_mode='Markdown'
-        )
+        try:
+            await query.message.reply_text(
+                "✅ تم إنشاء جدولك الدراسي الذكي!\n\n" + plan,
+                parse_mode='Markdown'
+            )
+        except Exception:
+            # Fallback to plain text if markdown formatting is invalid
+            await query.message.reply_text(
+                "✅ تم إنشاء جدولك الدراسي الذكي!\n\n" + plan
+            )
         
         # Trigger reload of reminders (handled in bot.py)
         context.application.job_queue.run_once(setup_reminders_for_user, when=1, data=update.effective_user.id)
@@ -209,10 +215,15 @@ async def view_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("لم تقم بإعداد جدولك بعد. اضغط على 'المدرب الدراسي الذكي 🤖' للبدء.")
         return
     
-    await update.message.reply_text(
-        f"📋 جدولك الدراسي الذكي الحالي:\n\n{profile['generated_plan']}",
-        parse_mode='Markdown'
-    )
+    try:
+        await update.message.reply_text(
+            f"📋 جدولك الدراسي الذكي الحالي:\n\n{profile['generated_plan']}",
+            parse_mode='Markdown'
+        )
+    except Exception:
+        await update.message.reply_text(
+            f"📋 جدولك الدراسي الذكي الحالي:\n\n{profile['generated_plan']}"
+        )
 
 coach_conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^المدرب الدراسي الذكي 🤖$"), start_coach)],
