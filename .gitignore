@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+temp/
+users.db
+venv/
+.vscode/
+*.png
+*.html
+*.pdf
+*.docx

@@ -1,0 +1,12 @@
+python-telegram-bot==22.7
+python-dotenv==1.2.2
+google-generativeai==0.8.4
+playwright==1.58.0
+reportlab==4.4.10
+arabic-reshaper==3.0.0
+python-bidi==0.6.7
+PyMuPDF==1.27.2.2
+flask==3.1.0
+psycopg2-binary==2.9.10
+gunicorn==23.0.0
+python-docx==1.1.2
