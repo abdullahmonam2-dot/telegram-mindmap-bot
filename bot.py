@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 import time
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes, Application
 from dotenv import load_dotenv
 import base64
@@ -12,6 +12,8 @@ from utils.pdf_processor import extract_text_from_pdf
 from utils.renderer import render_markmap_to_image, generate_interactive_html
 from utils.pdf_gen import create_pdf
 import utils.database as db
+from features.study_coach import coach_conv_handler, view_plan, setup_reminders_for_user
+from utils.coach_db import get_all_coach_profiles
 from flask import Flask
 import threading
 import html
@@ -22,7 +24,7 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WATERMARK_NAME = os.getenv("WATERMARK_NAME", "عبدالله منعم (acxo3)")
 ADMIN_ID = os.getenv("ADMIN_ID")
 
-# Flask for Keep-Alive (Render Free Tier)
+# Flask for Keep-Alive
 web_app = Flask(__name__)
 
 @web_app.route('/')
@@ -64,6 +66,16 @@ async def post_init(application: Application):
         BotCommand("start", "تشغيل أو إعادة تشغيل البوت")
     ]
     await application.bot.set_my_commands(commands)
+    
+    # Reload all study reminders on startup
+    print("Reloading study reminders...")
+    profiles = get_all_coach_profiles()
+    for profile in profiles:
+        user_id = profile["user_id"]
+        # Use a dummy job data to trigger the setup
+        class Job:
+            data = user_id
+        application.job_queue.run_once(setup_reminders_for_user, when=1, data=user_id)
 
 async def register_user(update: Update):
     user = update.effective_user
@@ -75,30 +87,109 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
         user_name = html.escape(user.first_name)
         
+        main_keyboard = [
+            ["المدرب الدراسي الذكي 🤖"],
+            ["عرض جدولي الدراسي الحالي 📋"],
+            ["تواصل مع المطور 📩"]
+        ]
+        
         welcome_text = f"""مرحباً {user_name}! 👋
 
-أنا **بوت الخرائط الذهنية الذكي**. 🧠
+أنا **بوت الخرائط الذهنية والمدرب الدراسي الذكي**. 🧠
 
-يمكنني تحويل **الصور، ملفات PDF، وملفات Word** إلى مخططات ذهنية احترافية وتفاعلية.
+يمكنني تحويل **الصور والملفات** إلى مخططات ذهنية، أو بناء **جدول دراسي ذكي** مخصص لك.
 
 **كيفية الاستخدام:**
-1. أرسل لي (صورة أو ملف PDF أو ملف Word).
-2. اختر نوع المخرج الذي تريده (رابط، ملف تفاعلي، أو صورة).
-3. سأقوم بتحليل المحتوى وصناعة الخريطة لك فوراً.
+1. أرسل (صورة أو ملف) لصناعة خريطة ذهنية.
+2. اضغط على الزر أدناه للبدء مع **المدرب الدراسي**.
 
 تم التطوير بواسطة: **عبدالله منعم**."""
-        await update.message.reply_markdown(welcome_text)
+        
+        await update.message.reply_markdown(
+            welcome_text,
+            reply_markup=ReplyKeyboardMarkup(main_keyboard, resize_keyboard=True)
+        )
     except Exception as e:
         await update.message.reply_text(f"حدث خطأ في رسالة الترحيب:\n{str(e)}")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     if user_id != str(ADMIN_ID):
-        # Silent ignore for non-admins
         return
     
     count = db.count_users()
     await update.message.reply_text(f"📊 إحصائيات البوت:\n\nعدد المستخدمين الكلي: {count}")
+
+# --- BROADCAST SYSTEM ---
+BROADCAST_TEXT = range(1)
+
+async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != str(ADMIN_ID): return ConversationHandler.END
+    await update.message.reply_text("🔎 أرسل الآن الرسالة التي تريد إذاعتها للجميع (نص، صورة، فيديو، إلخ...):\nللإلغاء أرسل /cancel")
+    return BROADCAST_TEXT
+
+async def execute_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    users = db.get_all_users()
+    total = len(users)
+    sent = 0
+    failed = 0
+    
+    msg = await update.message.reply_text(f"🚀 جاري الإذاعة إلى {total} مستخدم...")
+    
+    for user_id in users:
+        try:
+            await update.message.copy(chat_id=user_id)
+            sent += 1
+            if sent % 10 == 0:
+                await msg.edit_text(f"🚀 جاري الإذاعة... تم إرسال {sent} من أصل {total}")
+        except Exception:
+            failed += 1
+        await asyncio.sleep(0.05) # Rate limiting
+    
+    await msg.edit_text(f"✅ اكتملت الإذاعة!\n\nتم الإرسال لـ: {sent}\nفشل: {failed}")
+    return ConversationHandler.END
+
+# --- SUPPORT SYSTEM ---
+SUPPORT_TEXT = range(1)
+
+async def start_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("📥 أرسل رسالتك أو استفسارك الآن وسيقوم المطور بالرد عليك في أقرب وقت:")
+    return SUPPORT_TEXT
+
+async def forward_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_info = f"📩 رسالة جديدة من: {user.first_name} (@{user.username})\nID: <code>{user.id}</code>\n\nالمحتوى أدناه 👇"
+    
+    await context.bot.send_message(chat_id=ADMIN_ID, text=user_info, parse_mode='HTML')
+    await update.message.copy(chat_id=ADMIN_ID)
+    
+    await update.message.reply_text("✅ تم إرسال رسالتك للإدارة بنجاح. سيصلك الرد هنا قريباً.")
+    return ConversationHandler.END
+
+async def cancel_comm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("تم الإلغاء.")
+    return ConversationHandler.END
+
+# --- ADMIN REPLY ---
+async def handle_reply_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != str(ADMIN_ID): return
+    if not update.message.reply_to_message: return
+    
+    # Extract User ID from the info message
+    reply_msg = update.message.reply_to_message
+    text = ""
+    if reply_msg.text: text = reply_msg.text
+    elif reply_msg.caption: text = reply_msg.caption
+    
+    import re
+    match = re.search(r"ID: (\d+)", text)
+    if match:
+        target_user_id = match.group(1)
+        try:
+            await update.message.copy(chat_id=target_user_id)
+            await update.message.reply_text("✅ تم إرسال ردك للمستخدم بنجاح.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ فشل إرسال الرد: {e}")
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await register_user(update)
@@ -144,6 +235,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await register_user(update)
     text = update.message.text
     if text.startswith("/"): return
+    
+    if text == "عرض جدولي الدراسي الحالي 📋":
+        await view_plan(update, context)
+        return
+    
+    if text == "تواصل مع المطور 📩":
+        return
 
     user_data_store[update.effective_user.id] = {
         "text": text,
@@ -154,13 +252,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("🔗 فتح في المتصفح (رابط)", callback_data="mm_browser")],
-        [InlineKeyboardButton("🎮 ملف تفاعلي (HTML)", callback_data="mm_interactive")],
-        [InlineKeyboardButton("🖼️ مخطط ذهني (PNG)", callback_data="mm_only")],
-        [InlineKeyboardButton("🌍 ترجمة + مخطط (PNG)", callback_data="translate_mm")]
+        [InlineKeyboardButton("🔗 فتح المخطط الذهني في المتصفح", callback_data="mm_browser")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("اختر الوسيلة التي تود عرض الخريطة بها:", reply_markup=reply_markup)
+    await update.message.reply_text("تم استخراج البيانات، اضغط على الزر أدناه لعرض الخريطة التفاعلية:", reply_markup=reply_markup)
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -230,13 +325,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             b64_data = base64.b64encode(json_data.encode('utf-8')).decode('utf-8')
             browser_url = f"https://markmap.js.org/repl#?d=data:text/markdown;base64,{b64_data}"
             
-            keyboard = [[InlineKeyboardButton("🔗 اضغط هنا لفتح الخريطة", url=browser_url)]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
+            # Send the link as text instead of a button to avoid "Reply markup is too long" error
             await query.message.reply_text(
-                "🌍 **رابط المتصفح المباشر المفتوح:**\nستفتح الخريطة في المتصفح بشكل كامل وجاهزة للعرض.",
-                reply_markup=reply_markup,
-                parse_mode='Markdown'
+                f"🌍 **رابط المخطط الذهني التفاعلي:**\n\n[اضغط هنا لفتح الخريطة في المتصفح]({browser_url})\n\nبواسطة: [عبدالله منعم](https://t.me/acxo3)",
+                parse_mode='Markdown',
+                disable_web_page_preview=False
             )
             
         elif action == "mm_interactive":
@@ -260,29 +353,23 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"Error processing action {action}: {e}")
         await query.message.reply_text(error_info, parse_mode='Markdown')
     finally:
-        # 1. Delete original source file if it exists
         source_file = data.get("file_path")
         if source_file and os.path.exists(source_file):
             try:
                 os.remove(source_file)
-                logging.info(f"Deleted source file: {source_file}")
             except Exception as e:
                 logging.error(f"Failed to delete source file {source_file}: {e}")
         
-        # 2. Clear user session data
         if user_id in user_data_store:
             del user_data_store[user_id]
             
-        # 3. Delete the "Processing..." message to keep chat clean
         try:
             await status_msg.delete()
         except Exception as e:
             logging.error(f"Failed to delete status message: {e}")
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Log the error and send a telegram message to notify the developer."""
     logging.error("Exception while handling an update:", exc_info=context.error)
-    # Optional: send message to ADMIN_ID
     if ADMIN_ID:
         try:
             await context.bot.send_message(chat_id=ADMIN_ID, text=f"⚠️ حدث خطأ في البوت:\n<code>{html.escape(str(context.error))}</code>", parse_mode='HTML')
@@ -293,28 +380,37 @@ if __name__ == "__main__":
     if not BOT_TOKEN:
         print("Error: TELEGRAM_BOT_TOKEN not found in .env")
     else:
-        # Start Cleanup
         cleanup_temp_dir()
-        
-        # Start Flask in background
         print("Starting Flask Keep-Alive...")
         threading.Thread(target=run_flask, daemon=True).start()
-        
-        # Log Database Status
         print(f"Database System: {db.get_db_status()} [READY]")
         
-        # Build Application
         app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).connect_timeout(60).read_timeout(60).write_timeout(60).build()
         
         # Add Handlers
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CommandHandler("stats", stats))
+        
+        # Communication Handlers
+        broadcast_handler = ConversationHandler(
+            entry_points=[CommandHandler("broadcast", start_broadcast)],
+            states={BROADCAST_TEXT: [MessageHandler(filters.ALL & ~filters.COMMAND, execute_broadcast)]},
+            fallbacks=[CommandHandler("cancel", cancel_comm)]
+        )
+        support_handler = ConversationHandler(
+            entry_points=[MessageHandler(filters.Regex("^تواصل مع المطور 📩$"), start_support)],
+            states={SUPPORT_TEXT: [MessageHandler(filters.ALL & ~filters.COMMAND, forward_to_admin)]},
+            fallbacks=[CommandHandler("cancel", cancel_comm)]
+        )
+        app.add_handler(broadcast_handler)
+        app.add_handler(support_handler)
+        app.add_handler(MessageHandler(filters.REPLY & filters.User(int(ADMIN_ID or 0)), handle_reply_to_user))
+        
+        app.add_handler(coach_conv_handler) # Register Study Coach Handler
         app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
         app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text))
         app.add_handler(CallbackQueryHandler(button_callback))
-        
-        # Add Error Handler
         app.add_error_handler(error_handler)
         
         print("Bot is starting polling... [OK]")

@@ -8,7 +8,7 @@ load_dotenv()
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-model = genai.GenerativeModel("gemini-3-flash-preview")
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 async def get_gemini_response(prompt, content=None, is_image=False):
     """
@@ -88,3 +88,24 @@ async def translate_text(content, is_image=False):
     )
     return await get_gemini_response(prompt, content=content, is_image=is_image)
 
+async def generate_ai_study_plan(student_data):
+    """
+    Uses Gemini to analyze student data (stage, level, availability) and generate a personalized Iraqi study table.
+    """
+    prompt = (
+        "بصفتك خبيراً في التوجيه الأكاديمي للمناهج العراقية، قم بإنشاء جدول دراسي ذكي ومخصص للطالب بناءً على البيانات التالية:\n\n"
+        f"👤 اسم الطالب: {student_data['name']}\n"
+        f"🎓 المرحلة الدراسية: {student_data['stage']}\n"
+        f"⏰ ساعات الدراسة اليومية المتاحة: {student_data['daily_hours']} ساعة\n"
+        f"📅 تاريخ الامتحان الوزاري المتوقع: {student_data['exam_date']}\n"
+        f"🕒 مستويات المواد (ضعيف/متوسط/جيد):\n{student_data['levels_summary']}\n\n"
+        "القواعد الأساسية:\n"
+        "1. قم بتوزيع المواد الدراسية بحيث تأخذ المواد 'الضعيفة' وقتاً أطول وجهداً أكبر.\n"
+        "2. قم بتقسيم اليوم الدراسي إلى فترات (مثلاً: الصباح للمواد العلمية، المساء للحفظ).\n"
+        "3. اجعل الجدول الأسبوعي متوازناً وشاملاً لكل المواد.\n"
+        "4. أضف نصيحة دراسية ذكية وتقنية (مثل Pomodoro) مناسبة لهذا الطالب.\n"
+        "5. يجب أن يكون الرد باللغة العربية الفصحى الاحترافية وبتنسيق جميل جداً ومنظم باستخدام رموز تعبيرية (Emojis).\n\n"
+        "الناتج مطلوب أن يكون نصاً منسقاً جاهزاً للعرض المباشر للطالب."
+    )
+    
+    return await get_gemini_response(prompt)
