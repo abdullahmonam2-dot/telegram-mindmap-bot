@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: bot-redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  bot:
+    build: .
+    container_name: arabic-notebooklm-bot
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: always
+    command: python main.py
+
+  worker:
+    build: .
+    container_name: bot-worker
+    depends_on:
+      - redis
+      - bot
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: always
+    command: arq src.worker.WorkerSettings
