@@ -110,6 +110,38 @@ async def process_video_download(update: Update, context: ContextTypes.DEFAULT_T
         logger.error(f"Error in process_video_download: {e}")
         await status_msg.edit_text(f"❌ حدث خطأ أثناء المعالجة: {str(e)}")
 
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != str(ADMIN_ID): return
+    count = db.count_users()
+    await update.message.reply_text(f"📊 إجمالي المستخدمين: {count}")
+
+# --- نظام النشر (Broadcast) ---
+BROADCAST_TEXT = range(1)
+async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != str(ADMIN_ID): return ConversationHandler.END
+    await update.message.reply_text("🔎 أرسل الآن الرسالة (نص، صورة، فيديو) التي تريد إذاعتها للجميع:\nللإلغاء أرسل /cancel")
+    return BROADCAST_TEXT
+
+async def execute_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    users = db.get_all_users()
+    sent, failed = 0, 0
+    msg = await update.message.reply_text(f"🚀 جاري الإرسال إلى {len(users)} مستخدم...")
+    
+    for user_id in users:
+        try:
+            await update.message.copy(chat_id=user_id)
+            sent += 1
+            if sent % 10 == 0: await msg.edit_text(f"🚀 جاري الإرسال... تم إرسال {sent}")
+        except: failed += 1
+        await asyncio.sleep(0.05) # تفادي الحظر
+        
+    await msg.edit_text(f"✅ اكتمل الإرسال!\nتم الإرسال: {sent}\nفشل: {failed}")
+    return ConversationHandler.END
+
+async def cancel_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("تم إلغاء الإذاعة.")
+    return ConversationHandler.END
+
 if __name__ == "__main__":
     if not BOT_TOKEN:
         print("Error: TELEGRAM_BOT_TOKEN not found in .env")
@@ -117,9 +149,20 @@ if __name__ == "__main__":
         cleanup_temp_dir()
         threading.Thread(target=run_flask, daemon=True).start()
         
+        from telegram.ext import ConversationHandler
         app = ApplicationBuilder().token(BOT_TOKEN).connect_timeout(60).read_timeout(60).write_timeout(60).build()
         
+        # الأوامر الأساسية
         app.add_handler(CommandHandler("start", start))
+        app.add_handler(CommandHandler("stats", stats))
+        
+        # نظام النشر
+        app.add_handler(ConversationHandler(
+            entry_points=[CommandHandler("broadcast", start_broadcast)],
+            states={BROADCAST_TEXT: [MessageHandler(filters.ALL & ~filters.COMMAND, execute_broadcast)]},
+            fallbacks=[CommandHandler("cancel", cancel_broadcast)]
+        ))
+        
         app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
         
         print("Bot is starting... [OK]")
