@@ -117,7 +117,7 @@ if __name__ == "__main__":
         cleanup_temp_dir()
         threading.Thread(target=run_flask, daemon=True).start()
         
-        app = ApplicationBuilder().token(BOT_TOKEN).build()
+        app = ApplicationBuilder().token(BOT_TOKEN).connect_timeout(60).read_timeout(60).write_timeout(60).build()
         
         app.add_handler(CommandHandler("start", start))
         app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))

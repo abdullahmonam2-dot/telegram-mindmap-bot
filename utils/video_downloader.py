@@ -17,11 +17,16 @@ async def download_video(url, output_dir="temp"):
 
     # التحميل باحترافية وبدون علامة مائية (تلقائي في yt-dlp للتيك توك)
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
+        # إجبار الكودك على H.264 لضمان التوافق التام مع تلغرام (حل مشكلة الفيديو الثابت)
+        'format': 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/best[vcodec^=avc1]/best',
         'outtmpl': f'{output_dir}/%(id)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
         'merge_output_format': 'mp4',
+        'socket_timeout': 30,
+        'retries': 5,
+        'no_playlist': True,
+        'noprogress': True,
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         }
