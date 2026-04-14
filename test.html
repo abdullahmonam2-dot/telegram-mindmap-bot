@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-lib/dist/browser/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-view/dist/browser/index.js"></script>
+</head>
+<body>
+    <script>
+        console.log("MARKMAP:", window.markmap);
+        try {
+            const { Transformer, Markmap, loadCSS, loadJS } = window.markmap;
+            console.log("Transformer:", Transformer);
+            document.body.innerHTML = "Transformer: " + !!Transformer;
+        } catch (e) {
+            document.body.innerHTML = "Error: " + e.message;
+        }
+    </script>
+</body>
+</html>

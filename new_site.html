@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="نظام إدارة حجز القاعات الدراسية الجامعية - احجز قاعتك بسهولة وأمان" />
+  <title>نظام حجز القاعات الجامعية</title>
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#6366f1" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap"
+    rel="stylesheet" />
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="src/assets/style.css" />
+
+  <!-- Firebase SDK v10 (CDN - ESM) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+      from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+    import {
+      getFirestore, collection, doc, addDoc, getDocs, getDoc, query,
+      where, onSnapshot, deleteDoc, serverTimestamp, orderBy, Timestamp
+    }
+      from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+    // =============================================
+    // 🔧 إعداد Firebase — ضع بياناتك هنا
+    // =============================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyALdDKiFSBW5nKMp-yBS8wMmHNa9O3-g1o",
+      authDomain: "university-booking-d61b0.firebaseapp.com",
+      projectId: "university-booking-d61b0",
+      storageBucket: "university-booking-d61b0.firebasestorage.app",
+      messagingSenderId: "166209432429",
+      appId: "1:166209432429:web:8541996003e2ae59338864",
+      measurementId: "G-HHB5L45DKJ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // ====================================================
+    // APP STATE
+    // ====================================================
+    let currentUser = null;
+    let currentDept = null;
+    let currentBuilding = null;
+    let bookingsUnsubscribe = null;
+
+    // ====================================================
+    // ROUTER - Simple Hash-based SPA Router
+    // ====================================================
+    const router = {
+      navigate(page, params = {}) {
+        window.location.hash = page;
+        this._params = params;
+        this.render(page, params);
+      },
+      _params: {},
+      render(page, params = this._params) {
+        const app = document.getElementById('app');
+        if (!app) return;
+        app.className = 'page-enter';
+        setTimeout(() => app.classList.remove('page-enter'), 400);
+        switch (page) {
+          case 'login': renderLogin(); break;
+          case 'dashboard': renderDashboard(); break;
+          case 'building': renderBuilding(params.buildingId, params.buildingName); break;
+          case 'mybookings': renderMyBookings(); break;
+          default: renderDashboard(); break;
+        }
+      }
+    };
+
+    // ====================================================
+    // AUTH STATE LISTENER
+    // ====================================================
+    const DEPT_NAMES = {
+      'cs@university.edu': 'قسم علوم الحاسب',
+      'se@university.edu': 'قسم هندسة البرمجيات',
+      'is@university.edu': 'قسم نظم المعلومات',
+      'math@university.edu': 'قسم الرياضيات',
+      'physics@university.edu': 'قسم الفيزياء',
+      'chem@university.edu': 'قسم الكيمياء',
+      'arabic@university.edu': 'قسم اللغة العربية',
+      'english@university.edu': 'قسم اللغة الإنجليزية',
+      'business@university.edu': 'قسم إدارة الأعمال',
+      'accounting@university.edu': 'قسم المحاسبة',
+      'economics@university.edu': 'قسم الاقتصاد',
+      'law@university.edu': 'قسم القانون',
+      'pharmacy@university.edu': 'قسم الصيدلة',
+      'medicine@university.edu': 'قسم الطب',
+      'nursing@university.edu': 'قسم التمريض',
+      'civil@university.edu': 'قسم الهندسة المدنية',
+      'electrical@university.edu': 'قسم الهندسة الكهربائية'
+    };
+
+    onAuthStateChanged(auth, async user => {
+      if (user) {
+        currentUser = user;
+        currentDept = { name: DEPT_NAMES[user.email] || user.email };
+        router.navigate('dashboard');
+      } else {
+        currentUser = null;
+        currentDept = null;
+        if (bookingsUnsubscribe) { bookingsUnsubscribe(); bookingsUnsubscribe = null; }
+        router.navigate('login');
+      }
+    });
+
+    // ====================================================
+    // RENDER: LOGIN PAGE
+    // ====================================================
+    function renderLogin() {
+      document.getElementById('app').innerHTML = `
+        <div class="login-wrapper">
+          <div class="login-bg-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+          </div>
+          <div class="login-card">
+            <div class="login-logo">
+              <div class="logo-icon">🎓</div>
+              <h1 class="login-title">نظام حجز القاعات</h1>
+              <p class="login-subtitle">جامعة المستقبل — الوصول مقيد للأقسام الأكاديمية فقط</p>
+            </div>
+            <form id="loginForm" class="login-form" novalidate>
+              <div class="form-group">
+                <label for="emailInput">البريد الجامعي</label>
+                <div class="input-wrapper">
+                  <span class="input-icon">✉️</span>
+                  <input type="email" id="emailInput" placeholder="dept@university.edu" required autocomplete="email" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="passwordInput">كلمة المرور</label>
+                <div class="input-wrapper">
+                  <span class="input-icon">🔒</span>
+                  <input type="password" id="passwordInput" placeholder="••••••••" required autocomplete="current-password" />
+                  <button type="button" class="toggle-pass" id="togglePass">👁️</button>
+                </div>
+              </div>
+              <div id="loginError" class="error-msg hidden"></div>
+              <button type="submit" class="btn-primary btn-full" id="loginBtn">
+                <span class="btn-text">تسجيل الدخول</span>
+                <span class="btn-spinner hidden" id="loginSpinner">⏳</span>
+              </button>
+            </form>
+            <p class="login-note">⚠️ لا يمكن إنشاء حسابات جديدة. تواصل مع الإدارة.</p>
+          </div>
+        </div>
+      `;
+      document.getElementById('togglePass').addEventListener('click', () => {
+        const pw = document.getElementById('passwordInput');
+        pw.type = pw.type === 'password' ? 'text' : 'password';
+      });
+      document.getElementById('loginForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const email = document.getElementById('emailInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+        const errEl = document.getElementById('loginError');
+        const spinner = document.getElementById('loginSpinner');
+        const btnText = document.querySelector('.btn-text');
+        errEl.classList.add('hidden');
+        spinner.classList.remove('hidden');
+        btnText.textContent = 'جارٍ التحقق...';
+        document.getElementById('loginBtn').disabled = true;
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+        } catch (err) {
+          spinner.classList.add('hidden');
+          btnText.textContent = 'تسجيل الدخول';
+          document.getElementById('loginBtn').disabled = false;
+          errEl.textContent = getAuthError(err.code);
+          errEl.classList.remove('hidden');
+        }
+      });
+    }
+
+    function getAuthError(code) {
+      const map = {
+        'auth/user-not-found': 'البريد الإلكتروني غير مسجل في النظام.',
+        'auth/wrong-password': 'كلمة المرور غير صحيحة.',
+        'auth/invalid-email': 'البريد الإلكتروني غير صالح.',
+        'auth/too-many-requests': 'محاولات كثيرة. الرجاء الانتظار قليلاً.',
+        'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة.',
+      };
+      return map[code] || 'حدث خطأ. الرجاء المحاولة مجدداً.';
+    }
+
+    // ====================================================
+    // RENDER: DASHBOARD (Buildings)
+    // ====================================================
+    const BUILDINGS = [
+      { id: 'A', name: 'بناية A', icon: '🏛️', color: '#6366f1', rooms: 12 },
+      { id: 'B', name: 'بناية B', icon: '🏢', color: '#8b5cf6', rooms: 10 },
+      { id: 'C', name: 'بناية C', icon: '🏫', color: '#06b6d4', rooms: 15 },
+      { id: 'D', name: 'بناية D', icon: '🏗️', color: '#10b981', rooms: 8 },
+      { id: 'E', name: 'بناية E', icon: '🏬', color: '#f59e0b', rooms: 11 },
+    ];
+
+    function renderDashboard() {
+      const deptName = currentDept?.name || 'غير محدد';
+      document.getElementById('app').innerHTML = `
+        ${renderNavbar(deptName)}
+        <main class="main-content">
+          <div class="page-header">
+            <div class="page-header-content">
+              <h2 class="page-title">اختر البناية</h2>
+              <p class="page-desc">حدد البناية لعرض القاعات المتاحة وإجراء الحجز</p>
+            </div>
+            <div class="header-stats">
+              <div class="stat-badge">
+                <span class="stat-num">5</span>
+                <span class="stat-label">بنايات</span>
+              </div>
+              <div class="stat-badge">
+                <span class="stat-num">56</span>
+                <span class="stat-label">قاعة</span>
+              </div>
+            </div>
+          </div>
+          <div class="buildings-grid">
+            ${BUILDINGS.map(b => `
+              <button class="building-card" id="building-${b.id}" onclick="window._goBuilding('${b.id}','${b.name}')"
+                style="--card-color: ${b.color}">
+                <div class="building-icon">${b.icon}</div>
+                <div class="building-info">
+                  <h3 class="building-name">${b.name}</h3>
+                  <p class="building-rooms">${b.rooms} قاعة دراسية</p>
+                </div>
+                <div class="building-arrow">←</div>
+                <div class="building-glow"></div>
+              </button>
+            `).join('')}
+          </div>
+        </main>
+      `;
+      bindNavbar();
+    }
+
+    window._goBuilding = (id, name) => router.navigate('building', { buildingId: id, buildingName: name });
+
+    // ====================================================
+    // RENDER: BUILDING ROOMS
+    // ====================================================
+    const ROOMS_DATA = {
+      A: ['A101', 'A102', 'A103', 'A104', 'A105', 'A106', 'A107', 'A108', 'A109', 'A110', 'A111', 'A112'],
+      B: ['B201', 'B202', 'B203', 'B204', 'B205', 'B206', 'B207', 'B208', 'B209', 'B210'],
+      C: ['C301', 'C302', 'C303', 'C304', 'C305', 'C306', 'C307', 'C308', 'C309', 'C310', 'C311', 'C312', 'C313', 'C314', 'C315'],
+      D: ['D401', 'D402', 'D403', 'D404', 'D405', 'D406', 'D407', 'D408'],
+      E: ['E501', 'E502', 'E503', 'E504', 'E505', 'E506', 'E507', 'E508', 'E509', 'E510', 'E511'],
+    };
+
+    async function renderBuilding(buildingId, buildingName) {
+      document.getElementById('app').innerHTML = `
+        ${renderNavbar(currentDept?.name)}
+        <main class="main-content">
+          <div class="page-header">
+            <div class="page-header-content">
+              <button class="btn-back" onclick="router.navigate('dashboard')">← عودة</button>
+              <h2 class="page-title">${buildingName}</h2>
+              <p class="page-desc">اختر القاعة للحجز — يتم التحديث تلقائياً</p>
+            </div>
+            <div class="legend">
+              <span class="dot dot-green"></span><span>متاحة</span>
+              <span class="dot dot-red"></span><span>محجوزة</span>
+            </div>
+          </div>
+          <div class="rooms-grid" id="roomsGrid">
+            ${ROOMS_DATA[buildingId].map(r => `
+              <div class="room-card loading-skeleton" id="room-${r}">
+                <div class="room-name">${r}</div>
+                <div class="room-status-dot"></div>
+                <div class="room-status-text">جارٍ التحقق...</div>
+              </div>
+            `).join('')}
+          </div>
+        </main>
+        ${renderBookingModal()}
+      `;
+      bindNavbar();
+      window._goBuilding = (id, name) => router.navigate('building', { buildingId: id, buildingName: name });
+      startRoomListener(buildingId);
+    }
+
+    function startRoomListener(buildingId) {
+      if (bookingsUnsubscribe) bookingsUnsubscribe();
+
+      const q = query(
+        collection(db, 'bookings'),
+        where('buildingId', '==', buildingId)
+      );
+
+      bookingsUnsubscribe = onSnapshot(q, snap => {
+        const now = new Date();
+        const activeBookings = new Map();
+
+        snap.forEach(docSnap => {
+          const b = docSnap.data();
+          const start = b.startTime?.toDate?.() || new Date(b.startTime);
+          const end = b.endTime?.toDate?.() || new Date(b.endTime);
+          if (start <= now && end >= now) {
+            activeBookings.set(b.roomName, { ...b, id: docSnap.id });
+          }
+        });
+
+        ROOMS_DATA[buildingId].forEach(roomName => {
+          const card = document.getElementById(`room-${roomName}`);
+          if (!card) return;
+          card.classList.remove('loading-skeleton');
+          const booking = activeBookings.get(roomName);
+          if (booking) {
+            const endTime = (booking.endTime?.toDate?.() || new Date(booking.endTime));
+            const endStr = endTime.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
+            card.className = 'room-card occupied';
+            card.innerHTML = `
+              <div class="room-header">
+                <div class="room-name">${roomName}</div>
+                <div class="room-status-dot"></div>
+              </div>
+              <div class="room-status-text">محجوزة</div>
+              <div class="room-booking-info">
+                <span class="room-dept">${booking.departmentName}</span>
+                <span class="room-until">حتى ${endStr}</span>
+              </div>
+            `;
+          } else {
+            card.className = 'room-card available';
+            card.innerHTML = `
+              <div class="room-header">
+                <div class="room-name">${roomName}</div>
+                <div class="room-status-dot"></div>
+              </div>
+              <div class="room-status-text">متاحة</div>
+              <button class="btn-book" onclick="window._openBooking('${roomName}','${buildingId}')">
+                احجز الآن
+              </button>
+            `;
+          }
+        });
+      }, (err) => {
+        document.getElementById('roomsGrid').innerHTML = `
+          <div class="error-msg" style="grid-column: 1/-1;">
+            <strong>⚠️ خطأ في الاتصال بقاعدة البيانات:</strong><br/>
+            ${err.message}
+            <br/><br/>
+            إذا كانت المشالة "Missing or insufficient permissions"، فهذا يعني أن جدار الحماية (Rules) في Firebase يمنع الموقع من قراءة البيانات. يجب تعديل الـ Rules في لوحة الحكام!
+          </div>
+        `;
+        console.error("Firestore error:", err);
+      });
+    }
+
+    // ====================================================
+    // BOOKING MODAL
+    // ====================================================
+    function renderBookingModal() {
+      return `
+        <div class="modal-overlay hidden" id="bookingOverlay">
+          <div class="modal-card">
+            <div class="modal-header">
+              <h3 class="modal-title">حجز قاعة <span id="modalRoomName"></span></h3>
+              <button class="modal-close" onclick="window._closeModal()">✕</button>
+            </div>
+            <form id="bookingForm" class="booking-form" novalidate>
+              <div class="form-group">
+                <label for="bookDate">التاريخ</label>
+                <input type="date" id="bookDate" required />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="bookStart">وقت البداية</label>
+                  <input type="time" id="bookStart" required />
+                </div>
+                <div class="form-group">
+                  <label for="bookEnd">وقت النهاية</label>
+                  <input type="time" id="bookEnd" required />
+                </div>
+              </div>
+              <div id="bookingError" class="error-msg hidden"></div>
+              <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="window._closeModal()">إلغاء</button>
+                <button type="submit" class="btn-primary" id="confirmBookBtn">
+                  <span id="confirmBtnText">تأكيد الحجز</span>
+                  <span class="hidden" id="confirmSpinner">⏳</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    let _currentBookingRoom = null;
+    let _currentBookingBuilding = null;
+
+    window._openBooking = (roomName, buildingId) => {
+      _currentBookingRoom = roomName;
+      _currentBookingBuilding = buildingId;
+      document.getElementById('modalRoomName').textContent = roomName;
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('bookDate').min = today;
+      document.getElementById('bookDate').value = today;
+      document.getElementById('bookStart').value = '';
+      document.getElementById('bookEnd').value = '';
+      document.getElementById('bookingError').classList.add('hidden');
+      document.getElementById('bookingOverlay').classList.remove('hidden');
+      document.getElementById('bookingForm').onsubmit = handleBookingSubmit;
+    };
+
+    window._closeModal = () => {
+      document.getElementById('bookingOverlay').classList.add('hidden');
+      _currentBookingRoom = null;
+      _currentBookingBuilding = null;
+    };
+
+    async function handleBookingSubmit(e) {
+      e.preventDefault();
+      const dateVal = document.getElementById('bookDate').value;
+      const startVal = document.getElementById('bookStart').value;
+      const endVal = document.getElementById('bookEnd').value;
+      const errEl = document.getElementById('bookingError');
+      const spinner = document.getElementById('confirmSpinner');
+      const btnText = document.getElementById('confirmBtnText');
+
+      errEl.classList.add('hidden');
+      if (!dateVal || !startVal || !endVal) {
+        errEl.textContent = 'يرجى تعبئة جميع الحقول.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      const startTime = new Date(`${dateVal}T${startVal}:00`);
+      const endTime = new Date(`${dateVal}T${endVal}:00`);
+
+      if (endTime <= startTime) {
+        errEl.textContent = 'وقت النهاية يجب أن يكون بعد وقت البداية.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      if (startTime < new Date()) {
+        errEl.textContent = 'لا يمكن الحجز في وقت مضى.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      spinner.classList.remove('hidden');
+      btnText.textContent = 'جارٍ التحقق...';
+      document.getElementById('confirmBookBtn').disabled = true;
+
+      try {
+        // Check for conflicts
+        const conflictQ = query(
+          collection(db, 'bookings'),
+          where('roomName', '==', _currentBookingRoom)
+        );
+        const conflictSnap = await getDocs(conflictQ);
+        let hasConflict = false;
+
+        conflictSnap.forEach(docSnap => {
+          const b = docSnap.data();
+          // Filter building and time in memory
+          if (b.buildingId !== _currentBookingBuilding) return;
+
+          const bStart = b.startTime?.toDate?.() || new Date(b.startTime);
+          const bEnd = b.endTime?.toDate?.() || new Date(b.endTime);
+          if (bStart < endTime && bEnd > startTime) hasConflict = true;
+        });
+
+        if (hasConflict) {
+          errEl.textContent = '⚠️ هذه القاعة محجوزة في الوقت المحدد. الرجاء اختيار وقت آخر.';
+          errEl.classList.remove('hidden');
+          spinner.classList.add('hidden');
+          btnText.textContent = 'تأكيد الحجز';
+          document.getElementById('confirmBookBtn').disabled = false;
+          return;
+        }
+
+        await addDoc(collection(db, 'bookings'), {
+          roomName: _currentBookingRoom,
+          buildingId: _currentBookingBuilding,
+          departmentName: currentDept?.name || currentUser.email,
+          userId: currentUser.uid,
+          startTime: Timestamp.fromDate(startTime),
+          endTime: Timestamp.fromDate(endTime),
+          date: dateVal,
+          createdAt: serverTimestamp(),
+        });
+
+        window._closeModal();
+        showToast(`✅ تم حجز ${_currentBookingRoom ?? ''} بنجاح!`);
+      } catch (err) {
+        errEl.textContent = 'حدث خطأ أثناء الحجز: ' + err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        spinner.classList.add('hidden');
+        btnText.textContent = 'تأكيد الحجز';
+        document.getElementById('confirmBookBtn').disabled = false;
+      }
+    }
+
+    // ====================================================
+    // RENDER: MY BOOKINGS
+    // ====================================================
+    async function renderMyBookings() {
+      document.getElementById('app').innerHTML = `
+        ${renderNavbar(currentDept?.name)}
+        <main class="main-content">
+          <div class="page-header">
+            <div class="page-header-content">
+              <h2 class="page-title">حجوزاتي</h2>
+              <p class="page-desc">جميع حجوزات قسم ${currentDept?.name || ''}</p>
+            </div>
+          </div>
+          <div id="bookingsList" class="bookings-list">
+            <div class="loading-state">
+              <div class="spinner-large">⏳</div>
+              <p>جارٍ تحميل الحجوزات...</p>
+            </div>
+          </div>
+        </main>
+      `;
+      bindNavbar();
+
+      const q = query(
+        collection(db, 'bookings'),
+        where('userId', '==', currentUser.uid)
+      );
+
+      try {
+        const snap = await getDocs(q);
+        const container = document.getElementById('bookingsList');
+        if (snap.empty) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">📋</div>
+              <h3>لا توجد حجوزات</h3>
+              <p>لم تقم بأي حجز حتى الآن</p>
+              <button class="btn-primary" onclick="router.navigate('dashboard')">ابدأ الحجز الآن</button>
+            </div>`;
+          return;
+        }
+
+        const now = new Date();
+        let html = '';
+
+        // Sort in memory instead of relying on Firebase index
+        const sortedDocs = [];
+        snap.forEach(d => sortedDocs.push({ id: d.id, ...d.data() }));
+        sortedDocs.sort((a, b) => {
+          const startA = a.startTime?.toDate?.() || new Date(a.startTime);
+          const startB = b.startTime?.toDate?.() || new Date(b.startTime);
+          return startB - startA; // desc
+        });
+
+        sortedDocs.forEach(b => {
+          const start = b.startTime?.toDate?.() || new Date(b.startTime);
+          const end = b.endTime?.toDate?.() || new Date(b.endTime);
+          const isPast = end < now;
+          const isNow = start <= now && end >= now;
+          const status = isNow ? 'جارية الآن' : isPast ? 'منتهية' : 'قادمة';
+          const statusClass = isNow ? 'status-active' : isPast ? 'status-past' : 'status-upcoming';
+          const startStr = start.toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short', hour12: true });
+          const endStr = end.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+          html += `
+            <div class="booking-item ${isPast ? 'past' : ''}">
+              <div class="booking-room-badge">${b.roomName}</div>
+              <div class="booking-details">
+                <div class="booking-building">🏛️ بناية ${b.buildingId}</div>
+                <div class="booking-time">🕐 ${startStr} — ${endStr}</div>
+              </div>
+              <div class="booking-status-badge ${statusClass}">${status}</div>
+              ${!isPast ? `<button class="btn-cancel" onclick="window._cancelBooking('${b.id}','${b.roomName}')">إلغاء</button>` : ''}
+            </div>`;
+        });
+
+        container.innerHTML = html;
+      } catch (err) {
+        document.getElementById('bookingsList').innerHTML =
+          `<div class="error-msg">خطأ في التحميل: ${err.message}</div>`;
+      }
+    }
+
+    window._cancelBooking = async (bookingId, roomName) => {
+      if (!confirm(`هل تريد إلغاء حجز ${roomName}؟`)) return;
+      try {
+        await deleteDoc(doc(db, 'bookings', bookingId));
+        showToast(`🗑️ تم إلغاء حجز ${roomName}`);
+        renderMyBookings();
+      } catch (err) {
+        alert('خطأ في الإلغاء: ' + err.message);
+      }
+    };
+
+    // ====================================================
+    // NAVBAR
+    // ====================================================
+    function renderNavbar(deptName) {
+      return `
+        <nav class="navbar">
+          <div class="navbar-brand">
+            <span class="brand-icon">🎓</span>
+            <span class="brand-text">نظام حجز القاعات</span>
+          </div>
+          <div class="navbar-center" id="navLinks">
+            <button class="nav-link active" id="navDash" onclick="router.navigate('dashboard')">البنايات</button>
+            <button class="nav-link" id="navBook" onclick="router.navigate('mybookings')">حجوزاتي</button>
+          </div>
+          <div class="navbar-user">
+            <div class="user-chip">
+              <span class="user-avatar">👤</span>
+              <span class="user-name">${deptName}</span>
+            </div>
+            <button class="btn-logout" id="logoutBtn">خروج 🚪</button>
+          </div>
+        </nav>
+      `;
+    }
+
+    function bindNavbar() {
+      document.getElementById('logoutBtn')?.addEventListener('click', () => signOut(auth));
+    }
+
+    // ====================================================
+    // TOAST NOTIFICATION
+    // ====================================================
+    function showToast(msg) {
+      let toast = document.getElementById('globalToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'globalToast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    // ====================================================
+    // EXPOSE ROUTER GLOBALLY
+    // ====================================================
+    window.router = router;
+
+    // ====================================================
+    // INITIAL RENDER: show loading then auth handles it
+    // ====================================================
+    document.getElementById('app').innerHTML = `
+      <div class="splash-screen">
+        <div class="splash-icon">🎓</div>
+        <h1 class="splash-title">نظام حجز القاعات الجامعية</h1>
+        <div class="splash-loader">
+          <div class="loader-bar"></div>
+        </div>
+      </div>`;
+  </script>
+</head>
+
+<body>
+  <div id="app"></div>
+</body>
+
+</html>

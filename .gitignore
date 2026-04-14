@@ -1,12 +1,25 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-.env
-temp/
-users.db
 venv/
-.vscode/
-*.png
-*.html
-*.pdf
-*.docx
+.venv/
+env/
+.env
+
+# Project specific
+temp/
+downloads/
+*.db
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Git
+.git/
+# Not ignoring .git itself, but sometimes system levels might have it. 
+# Inside the project folder, we keep .git out of tracking.
