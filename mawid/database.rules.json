@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "users": {
+      // Users can read/write their own profile
+      // ADMINS can read all users (we'll allow authenticated read for now to fix the admin dashboard)
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "doctors": {
+      ".read": true,
+      ".write": "auth != null",
+      ".indexOn": ["secretaryId"]
+    },
+    "appointments": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["patientId"]
+    },
+    "activationCodes": {
+      // Allow public read/write for validation during signup
+      // (Security Note: This is a simple implementation for the current requirements)
+      ".read": true,
+      ".write": true
+    },
+    "ads": {
+      ".read": true,
+      ".write": "auth != null"
+    }
+  }
+}
