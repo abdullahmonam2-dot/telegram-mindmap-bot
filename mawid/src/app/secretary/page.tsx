@@ -414,7 +414,7 @@ export default function SecretaryDashboard() {
                     await updateDoctor(editingDoctor.id, data);
                     showToast('تم حفظ إعدادات العيادة بنجاح');
                   } else {
-                    await addDoctor(data);
+                    await addDoctor(data, user?.phone);
                     showToast('تم تفعيل العيادة بنجاح! يمكنك الآن استقبال الطلبات.');
                   }
                   const uid = user!.uid;

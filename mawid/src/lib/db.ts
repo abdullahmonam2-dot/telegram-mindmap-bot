@@ -27,7 +27,15 @@ export const getUser = async (uid: string): Promise<User | null> => {
 export const addDoctor = async (doctor: Omit<Doctor, 'id'>, secretaryPhone?: string) => {
   const newRef = push(ref(db, 'doctors'));
   const id = newRef.key!;
-  const docWithId = { ...doctor, id, secretaryPhone };
+  
+  // Clean doctor object to remove any potential undefined values
+  const cleanedDoctor = JSON.parse(JSON.stringify(doctor));
+  
+  const docWithId: any = { ...cleanedDoctor, id };
+  if (secretaryPhone !== undefined) {
+    docWithId.secretaryPhone = secretaryPhone;
+  }
+  
   await set(newRef, docWithId);
   return id;
 };
@@ -74,7 +82,8 @@ export const relinkDoctorsByPhone = async (phone: string, newSecretaryId: string
 };
 
 export const updateDoctor = async (id: string, data: Partial<Doctor>) => {
-  await update(ref(db, `doctors/${id}`), data);
+  const cleanedData = JSON.parse(JSON.stringify(data));
+  await update(ref(db, `doctors/${id}`), cleanedData);
 };
 
 export const deleteDoctor = async (id: string) => {
