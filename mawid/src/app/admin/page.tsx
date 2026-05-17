@@ -21,12 +21,15 @@ import { useRouter } from 'next/navigation';
 
 export default function AdminPage() {
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [tab, setTab] = useState<'codes' | 'ads' | 'stats' | 'users'>('stats');
+  const [tab, setTab] = useState<'codes' | 'ads' | 'stats' | 'users' | 'resets'>('stats');
   const [codes, setCodes] = useState<any[]>([]);
   const [ads, setAds] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalDoctors: 0, totalAppointments: 0 });
   const [users, setUsers] = useState<any[]>([]);
-  const [userSearch, setUserSearch] = useState('');
+  const [resets, setResets] = useState<any[]>([]);
+  const [resettingUser, setResettingUser] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [showAdModal, setShowAdModal] = useState(false);
   const router = useRouter();
@@ -263,8 +266,8 @@ export default function AdminPage() {
                 <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex items-center gap-4 max-w-2xl">
                   <Search className="w-6 h-6 text-slate-300" />
                   <input 
-                    value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="ابحث عن مستخدم بالاسم أو رقم الهاتف..."
                     className="flex-1 bg-transparent outline-none font-bold text-slate-700 text-lg"
                   />
@@ -286,8 +289,8 @@ export default function AdminPage() {
                         {users && users.length > 0 ? (
                           users
                             .filter(u => {
-                              if (!userSearch) return true;
-                              const s = userSearch.toLowerCase();
+                              if (!searchQuery) return true;
+                              const s = searchQuery.toLowerCase();
                               return (u?.name?.toLowerCase().includes(s)) || (u?.phone?.includes(s));
                             })
                             .map((u) => (
@@ -523,6 +526,8 @@ export default function AdminPage() {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
       {/* PASSWORD RESET MODAL */}
       <AnimatePresence>
         {resettingUser && (

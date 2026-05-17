@@ -1,35 +1,30 @@
 'use client';
+
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
 import { UserRole } from '@/lib/types';
-import { Phone, Lock, User, CheckCircle2, X, AlertCircle } from 'lucide-react';
-import { formatWhatsAppLink } from '@/lib/utils';
-import { AnimatePresence } from 'framer-motion';
+import { X, AlertCircle } from 'lucide-react';
 
 function AuthContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, signIn, signUp, loading } = useAuth();
-  const [tab, setTab] = useState<'login' | 'signup'>(
-    searchParams.get('tab') === 'signup' ? 'signup' : 'login'
-  );
-  const [role, setRole] = useState<UserRole>(
-    searchParams.get('role') === 'patient' ? 'patient' : 'secretary'
-  );
+  const [tab, setTab] = useState<'login' | 'signup'>(searchParams.get('tab') === 'signup' ? 'signup' : 'login');
+  const [role, setRole] = useState<UserRole>(searchParams.get('role') === 'secretary' ? 'secretary' : 'patient');
+  
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [activationCode, setActivationCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotPhone, setForgotPhone] = useState('');
   const [forgotName, setForgotName] = useState('');
   const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending' | 'success'>('idle');
-
 
   useEffect(() => {
     if (!loading && user) {
@@ -51,7 +46,6 @@ function AuthContent() {
       return;
     }
 
-    // Check activation code for secretaries
     if (tab === 'signup' && role === 'secretary') {
       const { validateAndUseActivationCode } = await import('@/lib/db');
       const isValid = await validateAndUseActivationCode(activationCode);
@@ -62,7 +56,6 @@ function AuthContent() {
       }
     }
 
-    // We use a dummy email derived from the phone number for Firebase
     const dummyEmail = `${phone.replace(/[^0-9]/g, '')}@mawid.com`;
 
     try {
@@ -78,13 +71,11 @@ function AuthContent() {
         setError('رقم الهاتف أو كلمة المرور غير صحيحة');
       else if (msg === 'auth/weak-password') 
         setError('كلمة المرور يجب أن تكون 6 أرقام أو حروف على الأقل');
-      else if (msg === 'auth/email-already-in-use') {
-        setError('هذا الرقم مسجل مسبقاً! الرجاء الضغط على "تسجيل الدخول" في الأعلى واستخدام كلمة مرورك. إذا نسيتها تواصل مع الإدارة.');
-      } else if (msg === 'auth/too-many-requests') {
-        setError('لقد قمت بمحاولات دخول كثيرة جداً في وقت قصير. يرجى الانتظار 5-10 دقائق ثم المحاولة مرة أخرى لحماية حسابك.');
-      } else {
-        setError('حدث خطأ أثناء التسجيل: ' + err.message);
-      }
+      else if (msg === 'auth/email-already-in-use') 
+        setError('هذا الرقم مسجل مسبقاً! الرجاء استخدام تسجيل الدخول.');
+      else if (msg === 'auth/too-many-requests') 
+        setError('لقد قمت بمحاولات دخول كثيرة جداً. يرجى الانتظار لحماية حسابك.');
+      else setError('حدث خطأ: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -98,7 +89,6 @@ function AuthContent() {
       await createPasswordResetRequest(forgotPhone, forgotName);
       setForgotStatus('success');
     } catch (err) {
-      console.error(err);
       setForgotStatus('idle');
     }
   };
@@ -106,240 +96,191 @@ function AuthContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-[#0ea5e9] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center px-4 py-12 bg-slate-50/30">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-[420px] bg-white p-8 sm:p-10 rounded-[40px] shadow-2xl shadow-blue-100/50 border border-slate-50"
-      >
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-blue-500 flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-200">
-            <span className="text-white font-extrabold text-2xl">M</span>
-          </div>
-          <h1 className="font-extrabold text-2xl text-slate-900">
-            {tab === 'login' ? 'أهلاً بك مجدداً' : 'إنشاء حساب جديد'}
-          </h1>
-          <p className="text-slate-400 text-sm mt-2 font-bold">
-            {tab === 'login' ? 'سجل دخولك برقم الهاتف' : 'انضم إلينا في ثوانٍ'}
-          </p>
-        </div>
+    <div className="min-h-screen overflow-y-auto px-5 py-7 flex flex-col max-w-[400px] mx-auto w-full gap-2.5 bg-[#f0f4f8]">
+      <span className="text-[48px] text-center block mb-1">🔐</span>
+      <h2 className="text-[20px] font-black text-[#1e293b] text-center m-0 mb-4">
+        {tab === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
+      </h2>
 
-        {/* Tab switch */}
-        <div className="flex gap-2 bg-slate-100/50 p-1.5 rounded-[20px] mb-8">
-          <button
-            onClick={() => { setTab('login'); setError(''); }}
-            className={`flex-1 py-3 rounded-[16px] text-sm font-bold transition-all ${
-              tab === 'login' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            دخول
-          </button>
-          <button
-            onClick={() => { setTab('signup'); setError(''); }}
-            className={`flex-1 py-3 rounded-[16px] text-sm font-bold transition-all ${
-              tab === 'signup' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            حساب جديد
-          </button>
-        </div>
+      <div className="flex rounded-[9px] overflow-hidden border border-[#e2e8f0] mb-2 bg-[#f8fafc]">
+        <button
+          type="button"
+          onClick={() => setRole('patient')}
+          className={`flex-1 border-none py-[9px] font-bold text-[12px] cursor-pointer transition-colors ${
+            role === 'patient' ? 'bg-[#0ea5e9] text-white' : 'bg-transparent text-[#64748b]'
+          }`}
+        >
+          👤 مريض
+        </button>
+        <button
+          type="button"
+          onClick={() => setRole('secretary')}
+          className={`flex-1 border-none py-[9px] font-bold text-[12px] cursor-pointer transition-colors ${
+            role === 'secretary' ? 'bg-[#0ea5e9] text-white' : 'bg-transparent text-[#64748b]'
+          }`}
+        >
+          👨‍⚕️ سكرتير
+        </button>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {tab === 'signup' && (
-            <>
-              {/* Role selection */}
-              <div className="flex gap-3 mb-6">
-                <button
-                  type="button"
-                  onClick={() => setRole('patient')}
-                  className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-3xl border-2 transition-all ${
-                    role === 'patient' ? 'border-blue-500 bg-blue-50' : 'border-slate-50 hover:border-slate-200'
-                  }`}
-                >
-                  <User className={`w-6 h-6 ${role === 'patient' ? 'text-blue-500' : 'text-slate-300'}`} />
-                  <span className={`text-[10px] font-extrabold uppercase ${role === 'patient' ? 'text-blue-600' : 'text-slate-400'}`}>مريض</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('secretary')}
-                  className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-3xl border-2 transition-all ${
-                    role === 'secretary' ? 'border-blue-500 bg-blue-50' : 'border-slate-50 hover:border-slate-200'
-                  }`}
-                >
-                  <CheckCircle2 className={`w-6 h-6 ${role === 'secretary' ? 'text-blue-500' : 'text-slate-300'}`} />
-                  <span className={`text-[10px] font-extrabold uppercase ${role === 'secretary' ? 'text-blue-600' : 'text-slate-400'}`}>سكرتيرة</span>
-                </button>
-              </div>
-
-              {/* Activation Code for Secretary */}
-              {role === 'secretary' && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-2 mb-4">
-                  <div className="relative">
-                    <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
-                    <input
-                      className="input-field pr-12 border-blue-100 bg-blue-50/30 placeholder:text-blue-300"
-                      placeholder="كود تفعيل المؤسسة"
-                      value={activationCode}
-                      onChange={(e) => setActivationCode(e.target.value)}
-                      required
-                    />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+        {tab === 'signup' && (
+          <>
+            <label className="text-[12px] font-bold text-[#374151] mb-[2px] block">الاسم الكامل *</label>
+            <input
+              className="w-full py-[9px] px-[12px] rounded-[8px] border border-[#e2e8f0] text-[13px] outline-none focus:border-[#0ea5e9]"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="اسمك الكامل"
+              required
+            />
+            
+            {role === 'secretary' && (
+              <>
+                <div className="bg-[#fffbeb] border border-[#fde68a] rounded-[10px] p-[10px] flex items-center gap-[10px] my-2">
+                  <span className="text-[18px]">🔑</span>
+                  <div>
+                    <p className="font-bold text-[12px] m-0 text-[#1e293b]">كود التفعيل مطلوب</p>
+                    <p className="text-[11px] text-[#64748b] m-0">احصل على الكود من الإدارة</p>
                   </div>
-                  <a 
-                    href="https://wa.me/9647857237105" 
-                    target="_blank"
-                    className="text-[10px] text-blue-500 font-bold hover:underline block text-center"
-                  >
-                    للحصول على كود التفعيل، تواصل مع الإدارة عبر واتساب 💬
-                  </a>
-                </motion.div>
-              )}
-
-              <div className="relative">
-                <User className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                </div>
+                <label className="text-[12px] font-bold text-[#374151] mb-[2px] block">كود التفعيل *</label>
                 <input
-                  className="input-field !pr-14"
-                  placeholder="الاسم الكامل"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  className="w-full py-[9px] px-[12px] rounded-[8px] border border-[#e2e8f0] text-[13px] outline-none focus:border-[#0ea5e9] uppercase tracking-widest font-bold"
+                  value={activationCode}
+                  onChange={e => setActivationCode(e.target.value)}
+                  placeholder="XXXXXX-XXXX"
                   required
                 />
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </>
+        )}
 
-          <div className="relative">
-            <Phone className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-            <input
-              className="input-field !pr-14"
-              placeholder="رقم الهاتف"
-              type="tel"
-              dir="ltr"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-          </div>
-          
-          <div className="relative">
-            <Lock className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-            <input
-              className="input-field !pr-14"
-              placeholder="كلمة المرور"
-              type="password"
-              dir="ltr"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
+        <label className="text-[12px] font-bold text-[#374151] mb-[2px] block">رقم الهاتف {tab==='signup'&&'*'}</label>
+        <input
+          className="w-full py-[9px] px-[12px] rounded-[8px] border border-[#e2e8f0] text-[13px] outline-none focus:border-[#0ea5e9]"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
+          placeholder="07X XXXX XXXX"
+          type="tel"
+          dir="ltr"
+          required
+        />
+
+        <div className="relative">
+          <label className="text-[12px] font-bold text-[#374151] mb-[2px] block flex justify-between">
+            <span>كلمة المرور {tab==='signup'&&'*'}</span>
             {tab === 'login' && (
               <button 
-                type="button"
+                type="button" 
                 onClick={() => setShowForgotModal(true)}
-                className="mt-2 text-xs font-bold text-blue-500 hover:underline px-2"
+                className="bg-transparent border-none text-[#0ea5e9] text-[11px] font-bold cursor-pointer hover:underline"
               >
-                نسيت كلمة المرور؟
+                نسيت الكلمة؟
               </button>
             )}
-          </div>
-
-          {error && (
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-red-500 font-bold text-center bg-red-50 py-3 px-4 rounded-2xl">
-              {error}
-            </motion.p>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="btn-primary w-full py-4.5 rounded-[20px] text-base shadow-xl shadow-blue-100 flex items-center justify-center gap-3"
-          >
-            {submitting && <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-            {tab === 'login' ? 'دخول' : 'إنشاء حساب'}
-          </button>
-        </form>
-
-        <p className="text-center text-[10px] text-slate-400 mt-8 font-bold">
-          بمتابعتك، أنت توافق على شروط الخدمة وسياسة الخصوصية لـ "موعد"
-        </p>
-
-        <div className="mt-8 pt-6 border-t border-slate-50 text-center">
-          <p className="text-[10px] text-slate-400 font-bold leading-relaxed">
-            تم تطوير هذا البرنامج بواسطة <br/>
-            <span className="text-blue-500 font-extrabold text-xs mt-1 block">الفريق البرمجي التابع لمؤسسة شهامة الأنبار</span>
-          </p>
+          </label>
+          <input
+            type="password"
+            className="w-full py-[9px] px-[12px] rounded-[8px] border border-[#e2e8f0] text-[13px] outline-none focus:border-[#0ea5e9]"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+            minLength={6}
+            dir="ltr"
+          />
         </div>
-      </motion.div>
+
+        {error && (
+          <p className="text-[12px] text-[#ef4444] text-center bg-[#fef2f2] border border-[#fecaca] rounded-[8px] py-2 px-3 font-bold my-1">
+            {error}
+          </p>
+        )}
+
+        <button 
+          type="submit" 
+          disabled={submitting}
+          className="w-full bg-[#0ea5e9] text-white border-none rounded-[10px] py-[12px] font-extrabold text-[14px] cursor-pointer mt-2 shadow-[0_4px_14px_rgba(14,165,233,0.3)] active:scale-95 transition-transform flex items-center justify-center gap-2"
+        >
+          {submitting && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+          {tab === 'login' ? 'دخول' : 'إنشاء الحساب'}
+        </button>
+
+        <button 
+          type="button"
+          onClick={() => { setTab(tab === 'login' ? 'signup' : 'login'); setError(''); }}
+          className="w-full bg-[#f8fafc] text-[#334155] border border-[#e2e8f0] rounded-[10px] py-[11px] font-bold text-[13px] cursor-pointer mt-1 active:scale-95 transition-transform"
+        >
+          {tab === 'login' ? 'إنشاء حساب جديد' : 'لديك حساب؟ سجل دخولك'}
+        </button>
+      </form>
 
       {/* FORGOT PASSWORD MODAL */}
       <AnimatePresence>
         {showForgotModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 relative">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-[#0f172a]/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white w-full max-w-[360px] rounded-[24px] shadow-2xl p-8 relative">
               <button 
                 onClick={() => { setShowForgotModal(false); setForgotStatus('idle'); }} 
-                className="absolute top-6 left-6 p-2 rounded-full bg-slate-50 text-slate-400"
+                className="absolute top-4 left-4 p-2 rounded-full bg-[#f8fafc] text-[#94a3b8]"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
 
-              <div className="text-center mb-8">
-                <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="w-8 h-8 text-blue-500" />
-                </div>
-                <h2 className="text-xl font-black text-slate-900">استعادة الحساب</h2>
-                <p className="text-xs text-slate-400 font-bold mt-2">أدخل بياناتك ليقوم الإدمن بمساعدتك</p>
+              <div className="text-center mb-6">
+                <span className="text-[40px] block mb-2">🆘</span>
+                <h2 className="text-[18px] font-black text-[#1e293b] m-0">استعادة الحساب</h2>
+                <p className="text-[12px] text-[#64748b] font-bold mt-1 mb-0">أدخل بياناتك ليقوم الإدمن بمساعدتك</p>
               </div>
 
               {forgotStatus === 'success' ? (
                 <div className="text-center py-4">
-                  <p className="text-sm font-bold text-green-600 bg-green-50 p-4 rounded-2xl mb-6">
-                    تم إرسال طلبك بنجاح! سيقوم الإدمن بالتواصل معك عبر واتساب قريباً.
-                  </p>
-                  <button 
-                    onClick={() => setShowForgotModal(false)}
-                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black"
-                  >
-                    حسناً
+                  <span className="text-[40px] block mb-2">✅</span>
+                  <p className="text-[14px] font-bold text-[#1e293b]">تم إرسال طلبك بنجاح!</p>
+                  <p className="text-[12px] text-[#64748b] mb-6">سيقوم الإدمن بالتواصل معك على واتساب قريباً.</p>
+                  <button onClick={() => setShowForgotModal(false)} className="w-full bg-[#0ea5e9] text-white rounded-[10px] py-2.5 font-bold text-[13px]">
+                    حسناً، فهمت
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleForgotSubmit} className="space-y-4">
-                  <input
-                    className="input-field"
-                    placeholder="اسمك الثلاثي"
-                    value={forgotName}
-                    onChange={(e) => setForgotName(e.target.value)}
-                    required
-                  />
-                  <input
-                    className="input-field"
-                    placeholder="رقم الهاتف المسجل"
-                    type="tel"
-                    dir="ltr"
-                    value={forgotPhone}
-                    onChange={(e) => setForgotPhone(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={forgotStatus === 'sending'}
-                    className="btn-primary w-full py-4 rounded-2xl font-black shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                <form onSubmit={handleForgotSubmit} className="flex flex-col gap-3">
+                  <div>
+                    <label className="text-[12px] font-bold text-[#374151] mb-1 block">رقم الهاتف المسجل</label>
+                    <input 
+                      className="w-full py-[9px] px-[12px] rounded-[8px] border border-[#e2e8f0] text-[13px] outline-none focus:border-[#0ea5e9]" 
+                      value={forgotPhone} 
+                      onChange={e => setForgotPhone(e.target.value)} 
+                      required 
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-bold text-[#374151] mb-1 block">اسمك الكامل</label>
+                    <input 
+                      className="w-full py-[9px] px-[12px] rounded-[8px] border border-[#e2e8f0] text-[13px] outline-none focus:border-[#0ea5e9]" 
+                      value={forgotName} 
+                      onChange={e => setForgotName(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <button 
+                    disabled={forgotStatus === 'sending'} 
+                    className="w-full bg-[#10b981] text-white rounded-[10px] py-[11px] font-bold text-[13px] mt-2 shadow-[0_4px_14px_rgba(16,185,129,0.3)] disabled:opacity-50"
                   >
-                    {forgotStatus === 'sending' && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                    إرسال طلب استعادة
+                    {forgotStatus === 'sending' ? 'جاري الإرسال...' : 'إرسال طلب استعادة'}
                   </button>
                 </form>
               )}
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
@@ -348,7 +289,7 @@ function AuthContent() {
 
 export default function AuthPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="min-h-screen bg-[#f0f4f8]" />}>
       <AuthContent />
     </Suspense>
   );

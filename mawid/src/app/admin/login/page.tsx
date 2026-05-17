@@ -1,7 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Shield, Lock } from 'lucide-react';
 import { verifyAdminPassword } from '@/actions/security';
 import { useRouter } from 'next/navigation';
 
@@ -19,10 +17,8 @@ export default function AdminLoginPage() {
     try {
       const isValid = await verifyAdminPassword(password);
       if (isValid) {
-        // In a real app, we'd set a secure cookie here.
-        // For this project's simplicity, we'll use localStorage to persist the "session"
         localStorage.setItem('admin_auth', 'true');
-        localStorage.setItem('admin_session_expiry', (Date.now() + 3600000).toString()); // 1 hour
+        localStorage.setItem('admin_session_expiry', (Date.now() + 3600000).toString());
         router.push('/admin');
       } else {
         setError('كلمة المرور غير صحيحة');
@@ -35,50 +31,42 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-right" dir="rtl">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        className="bg-white p-10 rounded-[40px] shadow-2xl w-full max-w-md"
-      >
-        <div className="w-20 h-20 bg-blue-500 rounded-[28px] flex items-center justify-center mx-auto mb-6 text-white shadow-xl shadow-blue-500/20">
-          <Shield className="w-10 h-10" />
-        </div>
-        <h1 className="text-2xl font-extrabold text-slate-900 text-center mb-2">لوحة تحكم الإدارة</h1>
-        <p className="text-slate-400 text-center text-sm mb-8">يرجى إدخال الكود الرئيسي للوصول</p>
+    <div className="min-h-screen overflow-y-auto px-5 py-7 flex flex-col max-w-[400px] mx-auto w-full gap-2.5 bg-[#f0f4f8]">
+      <span className="text-[52px] text-center block mb-1">🛡️</span>
+      <h2 className="text-[20px] font-black text-[#1e293b] text-center m-0">لوحة تحكم المدير</h2>
+      <p className="text-center text-[#64748b] text-[13px] m-0 mb-2">الدخول محصور بالمدير فقط</p>
+      
+      <form onSubmit={handleLogin} className="flex flex-col gap-2.5">
+        <label className="text-[12px] font-bold text-[#374151] mb-[2px] block">الكود السري</label>
+        <input 
+          type="password" 
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          className="w-full py-[9px] px-[12px] rounded-[8px] border border-[#e2e8f0] text-[13px] outline-none focus:border-[#0ea5e9]"
+          required
+          dir="ltr"
+        />
         
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="relative">
-            <Lock className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="أدخل الكود الرئيسي هنا..."
-              className="w-full py-4 pr-14 pl-6 bg-slate-50 border border-slate-100 rounded-[20px] outline-none focus:border-blue-500 transition-all font-bold"
-              required
-            />
-          </div>
-          {error && <p className="text-red-500 text-xs font-bold text-center">{error}</p>}
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full py-4 bg-slate-900 text-white rounded-[20px] font-extrabold shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-            دخول النظام
-          </button>
-        </form>
+        {error && <p className="text-[#ef4444] text-[12px] font-bold text-center mt-1">{error}</p>}
         
-        <div className="mt-8 text-center">
-          <button 
-            onClick={() => router.push('/')}
-            className="text-slate-400 text-xs font-bold hover:text-slate-600 transition-colors"
-          >
-            العودة للرئيسية
-          </button>
-        </div>
-      </motion.div>
+        <button 
+          type="submit" 
+          disabled={loading}
+          className="w-full bg-[#0ea5e9] text-white border-none rounded-[10px] py-[12px] font-extrabold text-[14px] cursor-pointer mt-2 shadow-[0_4px_14px_rgba(14,165,233,0.3)] flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
+        >
+          {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+          دخول لوحة التحكم
+        </button>
+
+        <button 
+          type="button"
+          onClick={() => router.push('/')}
+          className="w-full bg-[#f8fafc] text-[#334155] border border-[#e2e8f0] rounded-[10px] py-[11px] font-bold text-[13px] cursor-pointer mt-1 active:scale-95 transition-transform"
+        >
+          ← الرجوع للتطبيق
+        </button>
+      </form>
     </div>
   );
 }

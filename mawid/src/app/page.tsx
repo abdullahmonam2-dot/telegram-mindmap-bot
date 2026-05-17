@@ -3,247 +3,200 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
-import { SPECIALTIES, Specialty } from '@/lib/types';
-import { Search, ChevronLeft, ChevronRight, LayoutDashboard } from 'lucide-react';
+import { SPECIALTIES } from '@/lib/types';
 import { formatWhatsAppLink } from '@/lib/utils';
-
-const CATEGORIES: Specialty[] = ['dentistry', 'cardiology', 'dermatology', 'pediatrics', 'ophthalmology'];
 
 export default function HomePage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [query, setQuery] = useState('');
   const [ads, setAds] = useState<any[]>([]);
   const [adIndex, setAdIndex] = useState(0);
+  const [stats, setStats] = useState({ doctors: 124, appointments: 8500 });
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
-    const { getAllAds } = require('@/lib/db');
+    const { getAllAds, getAdminStats } = require('@/lib/db');
     getAllAds().then(setAds);
+    getAdminStats().then((data: any) => {
+      if (data) {
+        setStats({
+          doctors: data.totalDoctors || 124,
+          appointments: data.totalAppointments || 8500
+        });
+      }
+    });
   }, []);
 
   useEffect(() => {
-    if (ads.length <= 1) return;
-    const timer = setInterval(() => setAdIndex(i => (i + 1) % ads.length), 4500);
+    if (paused || ads.length <= 1) return;
+    const timer = setInterval(() => setAdIndex(i => (i + 1) % ads.length), 3800);
     return () => clearInterval(timer);
-  }, [ads.length]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    router.push(query ? `/search?q=${encodeURIComponent(query)}` : '/search');
-  };
+  }, [ads.length, paused]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="flex flex-col min-h-screen bg-[#f0f4f8] pb-24">
+      {/* ── HERO SECTION ── */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e3a5f] to-[#0f172a] px-4 pt-16 pb-6 shrink-0">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_50%,rgba(14,165,233,0.18)_0%,transparent_60%)]" />
+        <div className="absolute w-[200px] h-[200px] rounded-full border border-white/5 -top-[50px] -right-[50px]" />
+        <div className="absolute w-[130px] h-[130px] rounded-full bg-emerald-500/10 -bottom-[30px] left-[20px]" />
 
-      {/* ── TOP SECTION: Search + Dashboard Button ── */}
-      <section className="bg-white px-4 pt-16 pb-6 shadow-sm">
-        <div className="page-container">
+        <div className="relative z-10 flex flex-col pt-4">
+          <span className="inline-block self-start bg-white/10 text-white/85 rounded-full px-3 py-1 text-[10px] font-bold mb-2 border border-white/10">
+            🇮🇶 الخدمة الطبية الأولى في العراق
+          </span>
+          <h1 className="text-white text-[26px] md:text-[32px] font-black leading-tight mb-2">
+            احجز موعدك الطبي<br/>
+            <span className="text-[#34d399]">بكل سهولة ويسر</span>
+          </h1>
+          <p className="text-white/60 text-xs mb-4 font-bold">لأن صحتك تبدأ بحجز موعد ذكي</p>
+          
+          <button 
+            onClick={() => router.push('/search')} 
+            className="self-start flex items-center gap-2 bg-[#0ea5e9] text-white rounded-[11px] px-5 py-2.5 text-[13px] font-bold shadow-[0_4px_14px_rgba(14,165,233,0.4)] mb-4 active:scale-95 transition-transform"
+          >
+            🔍 ابحث عن طبيب الآن
+          </button>
+          
+          <div className="flex gap-5 mt-2">
+            <div className="flex flex-col">
+              <strong className="text-[20px] font-black text-white">{stats.doctors}</strong>
+              <span className="text-[10px] text-white/50 font-bold">طبيب</span>
+            </div>
+            <div className="flex flex-col">
+              <strong className="text-[20px] font-black text-white">18</strong>
+              <span className="text-[10px] text-white/50 font-bold">محافظة</span>
+            </div>
+            <div className="flex flex-col">
+              <strong className="text-[20px] font-black text-white">{stats.appointments}</strong>
+              <span className="text-[10px] text-white/50 font-bold">حجز</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          {/* Title */}
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-5">
-            <span className="inline-block px-3 py-1 rounded-full bg-blue-50 text-blue-500 text-[11px] font-bold mb-2">
-              🏥 رعاية طبية ذكية
-            </span>
-            <h1 style={{ fontFamily: "'Cairo', sans-serif", fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.4 }}>
-              صحتك تبدأ بحجز{' '}
-              <span style={{ color: '#2563eb' }}>موعد ذكي</span>
-            </h1>
-          </motion.div>
-
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="mb-4">
-            <div className="flex items-center gap-2 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
-              <div className="flex-1 flex items-center gap-2 px-3">
-                <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="ابحث عن طبيب أو تخصص..."
-                  style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.85rem' }}
-                  className="w-full py-2.5 bg-transparent outline-none text-slate-700 font-medium"
-                />
-              </div>
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-all active:scale-95 flex-shrink-0"
-                style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.85rem' }}
+      <div className="flex-1 overflow-y-auto">
+        {/* ── ADS BANNER ── */}
+        <div className="px-4 pt-4">
+          {ads.length > 0 ? (
+            <div 
+              className="relative bg-white rounded-[11px] overflow-hidden border border-[#e2e8f0] shadow-[0_1px_5px_rgba(0,0,0,0.05)]"
+              onMouseEnter={() => setPaused(true)} 
+              onMouseLeave={() => setPaused(false)}
+            >
+              <span className="absolute top-1.5 right-2 text-[8px] font-bold text-[#94a3b8] tracking-widest z-10">إعلان</span>
+              
+              <AnimatePresence mode="wait">
+                <motion.div 
+                  key={adIndex}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex items-stretch"
+                >
+                  <div className="w-[90px] shrink-0 relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] to-[#3730a3] flex items-center justify-center">
+                    {ads[adIndex]?.imageUrl ? (
+                      <img src={ads[adIndex]?.imageUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-3xl">📢</span>
+                    )}
+                    <span className="absolute bottom-1 right-1 text-[8px] font-bold text-white bg-[#be185d] rounded px-1 py-0.5">مميز</span>
+                  </div>
+                  <div className="flex-1 p-2.5 flex flex-col justify-center gap-1">
+                    <p className="text-[12px] font-extrabold text-[#1e293b] m-0 leading-tight">{ads[adIndex]?.title}</p>
+                    <p className="text-[10px] text-[#64748b] m-0 leading-relaxed line-clamp-2">{ads[adIndex]?.description}</p>
+                    <div className="flex gap-1.5 mt-1">
+                      {ads[adIndex]?.linkUrl && (
+                        <button onClick={() => window.open(ads[adIndex].linkUrl, '_blank')} className="bg-[#0ea5e9] text-white rounded-md px-2.5 py-1 text-[10px] font-bold">
+                          عرض التفاصيل
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+              
+              {ads.length > 1 && (
+                <div className="flex gap-1 justify-center py-1.5 bg-[#f8fafc]">
+                  {ads.map((_, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => { setAdIndex(i); setPaused(true); setTimeout(() => setPaused(false), 5000); }}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${i === adIndex ? 'w-[18px] bg-[#0ea5e9]' : 'w-[7px] bg-[#e2e8f0]'}`}
+                    />
+                  ))}
+                </div>
+              )}
+              {!paused && ads.length > 1 && (
+                <div className="absolute bottom-0 left-0 h-0.5 bg-[#0ea5e9]" style={{ animation: 'adProg 3.8s linear forwards' }} key={adIndex} />
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-[11px] border border-[#e2e8f0] p-4 text-center">
+              <span className="text-3xl mb-2 block">📢</span>
+              <p className="text-[12px] font-extrabold text-[#1e293b] mb-1">أعلن هنا وتواصل مع آلاف المرضى</p>
+              <button 
+                onClick={() => window.open(formatWhatsAppLink('07700000000', 'أريد الاستفسار عن الإعلان'), '_blank')}
+                className="mt-2 bg-[#25D366] text-white rounded-md px-4 py-1.5 text-[11px] font-bold"
               >
-                بحث
+                تواصل معنا عبر واتساب
               </button>
             </div>
-          </form>
-
-          {/* Dashboard Button (secretary only) */}
-          {user?.role === 'secretary' && (
-            <Link
-              href="/secretary"
-              className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-95"
-              style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.9rem' }}
-            >
-              <LayoutDashboard className="w-5 h-5" />
-              لوحة تحكم السكرتيرة
-            </Link>
           )}
         </div>
-      </section>
 
-      {/* ── ADS PANEL ── */}
-      <section className="px-4 pt-5 pb-2">
-        <div className="page-container">
-          <div className="flex items-center justify-between mb-3">
-            <h2 style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.9rem', fontWeight: 800, color: '#334155' }}>
-              إعلانات مميزة
-            </h2>
-            {ads.length > 1 && (
-              <div className="flex items-center gap-1">
-                {ads.map((_, i) => (
-                  <button key={i} onClick={() => setAdIndex(i)}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${i === adIndex ? 'bg-blue-500 w-5' : 'bg-slate-300 w-1.5'}`}
-                  />
-                ))}
-              </div>
-            )}
+        {/* ── SPECIALTIES ── */}
+        <div className="px-4 pt-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-extrabold text-[14px] text-slate-800">التخصصات</span>
+            <button onClick={() => router.push('/search')} className="text-[#0ea5e9] text-[13px] font-bold">الكل ←</button>
           </div>
-
-          {ads.length > 0 ? (
-            /* Real Ad Card */
-            <motion.div
-              key={adIndex}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-100"
-            >
-              {/* Ad Image */}
-              <div className="relative w-full" style={{ height: '180px' }}>
-                <img
-                  src={ads[adIndex]?.imageUrl}
-                  alt={ads[adIndex]?.title}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-3 right-3 bg-blue-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow">
-                  رعاية ⭐
-                </div>
-                {ads.length > 1 && (
-                  <>
-                    <button onClick={() => setAdIndex(i => (i - 1 + ads.length) % ads.length)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-all">
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => setAdIndex(i => (i + 1) % ads.length)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-all">
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-              </div>
-              {/* Ad Text */}
-              <div className="p-4 text-right">
-                <h3 style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 800, fontSize: '1rem', color: '#1e293b' }} className="mb-1">
-                  {ads[adIndex]?.title}
-                </h3>
-                <p style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.8rem', color: '#64748b' }} className="mb-3 leading-relaxed">
-                  {ads[adIndex]?.description}
-                </p>
-                <button
-                  onClick={() => ads[adIndex]?.linkUrl && window.open(ads[adIndex].linkUrl, '_blank')}
-                  className="w-full py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-md hover:bg-blue-700 transition-all active:scale-95"
-                  style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.85rem' }}
-                >
-                  عرض التفاصيل والتواصل →
-                </button>
-              </div>
-            </motion.div>
-          ) : (
-            /* Placeholder Ad Card */
-            <div className="bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-100">
-              {/* Placeholder Image Area */}
-              <div
-                className="relative w-full flex items-center justify-center"
-                style={{ height: '180px', background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)' }}
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(SPECIALTIES).map(([key, data]) => (
+              <button 
+                key={key} 
+                onClick={() => router.push(`/search?specialty=${key}`)} 
+                className="inline-flex items-center gap-1.5 bg-white border border-[#e2e8f0] rounded-[30px] px-3.5 py-1.5 text-[12px] font-bold text-[#334155] shadow-[0_1px_3px_rgba(0,0,0,0.04)] active:scale-95 transition-transform"
               >
-                <div className="text-center text-white px-6">
-                  <div className="text-5xl mb-2 opacity-80">📢</div>
-                  <p style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.85rem', fontWeight: 700 }} className="opacity-90">
-                    صورة الإعلان ستظهر هنا
-                  </p>
-                </div>
-                <div className="absolute top-3 right-3 bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-lg border border-white/30">
-                  🏷️ إعلان مميز
-                </div>
-              </div>
-              {/* Placeholder Text */}
-              <div className="p-5 text-right">
-                <h3 style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 800, fontSize: '1rem', color: '#1e293b' }} className="mb-1">
-                  أعلن هنا وتواصل مع آلاف المرضى في العراق 🇮🇶
-                </h3>
-                <p style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.8rem', color: '#64748b' }} className="mb-4 leading-relaxed">
-                  هذه المساحة متاحة للعيادات والمختبرات والصيدليات للإعلان عن خدماتهم وعروضهم الحصرية مباشرةً على شاشة المرضى.
-                </p>
-                <button
-                  onClick={() => {
-                    const msg = 'أهلاً، أريد الاستفسار عن المساحة الإعلانية في تطبيق موعد 📢';
-                    window.open(formatWhatsAppLink('07700000000', msg), '_blank');
-                  }}
-                  className="w-full py-3 rounded-2xl font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                  style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.85rem', background: '#25D366', color: 'white' }}
-                >
-                  <span>💬</span>
-                  <span>تواصل معنا عبر واتساب لحجز إعلانك</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── Specialties ── */}
-      <section className="px-4 py-5">
-        <div className="page-container">
-          <h2 style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.9rem', fontWeight: 800, color: '#334155' }} className="mb-3">
-            التخصصات الطبية
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {CATEGORIES.map((key) => (
-              <Link
-                key={key}
-                href={`/search?specialty=${key}`}
-                className="flex flex-col items-center gap-2.5 p-4 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg transition-all group active:scale-95"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl group-hover:bg-blue-500 transition-all">
-                  {SPECIALTIES[key].icon}
-                </div>
-                <span style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700, fontSize: '0.75rem', color: '#475569' }} className="text-center">
-                  {SPECIALTIES[key].ar}
-                </span>
-              </Link>
+                {data.icon} {data.ar}
+              </button>
             ))}
           </div>
         </div>
-      </section>
 
-      {/* ── Medical Illustration (Bottom) ── */}
-      <section className="px-4 pb-6">
-        <div className="page-container">
-          <div className="relative bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl overflow-hidden border border-blue-100 shadow-sm flex items-center justify-center py-4">
-            <Image
-              src="/illustration.png"
-              alt="Medical illustration"
-              width={320}
-              height={320}
-              className="mx-auto"
-            />
+        {/* ── DOCTOR CTA ── */}
+        {!user && (
+          <div className="mx-4 mt-6 bg-gradient-to-br from-[#0f172a] to-[#1e3a5f] rounded-[14px] p-3.5 flex items-center gap-2.5">
+            <span className="text-[26px]">👨‍⚕️</span>
+            <div className="flex-1">
+              <p className="text-white font-extrabold text-[13px] m-0">هل أنت طبيب؟</p>
+              <p className="text-white/60 text-[11px] m-0 font-bold">سجّل عيادتك مجاناً عبر المنصة</p>
+            </div>
+            <button 
+              onClick={() => router.push('/auth')} 
+              className="bg-[#10b981] text-white rounded-[9px] px-3.5 py-2 font-bold text-[12px] shrink-0 active:scale-95 transition-transform"
+            >
+              سجّل الآن
+            </button>
           </div>
-        </div>
-      </section>
+        )}
 
-      {/* Footer */}
-      <footer className="py-6 border-t border-slate-200 text-center" style={{ fontFamily: "'Cairo', sans-serif", fontSize: '0.75rem', color: '#94a3b8' }}>
-        © 2026 موعد. جميع الحقوق محفوظة.
-      </footer>
+        <div className="text-center py-6 pb-12">
+          <button 
+            onClick={() => router.push('/admin/login')}
+            className="bg-transparent border-none text-[#cbd5e1] text-[11px] font-bold cursor-pointer"
+          >
+            ⚙️ دخول الإدارة
+          </button>
+        </div>
+      </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes adProg { from { width: 0; } to { width: 100%; } }
+      `}} />
     </div>
   );
 }

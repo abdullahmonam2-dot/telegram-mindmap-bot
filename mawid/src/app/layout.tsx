@@ -55,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <GlobalNotificationHandler />
           <Navbar />
-          <main className="pt-20">
+          <main className="pb-16 min-h-screen">
             <PageTransition>
               {children}
             </PageTransition>
