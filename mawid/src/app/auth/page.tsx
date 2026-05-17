@@ -223,6 +223,17 @@ function AuthContent() {
         </button>
       </form>
 
+      {/* Admin Contact Link */}
+      <a 
+        href="https://wa.me/9647857237105" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="text-center text-[12px] font-extrabold text-[#0ea5e9] mt-4 hover:underline flex items-center justify-center gap-2"
+      >
+        <span>💬</span>
+        تواصل مع الإدارة للحصول على الكود (07857237105)
+      </a>
+
       {/* FORGOT PASSWORD MODAL */}
       <AnimatePresence>
         {showForgotModal && (
