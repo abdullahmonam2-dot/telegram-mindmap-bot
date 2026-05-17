@@ -184,8 +184,8 @@ export default function HomePage() {
           </div>
         )}
 
+      </div>
       
-
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes adProg { from { width: 0; } to { width: 100%; } }
       `}} />
