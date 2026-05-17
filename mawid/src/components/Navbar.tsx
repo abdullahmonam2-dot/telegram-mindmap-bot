@@ -8,14 +8,14 @@ export default function Navbar() {
   const { user } = useAuth();
   const pathname = usePathname();
 
-  // Hide nav on admin and secretary pages
-  if (pathname.startsWith('/admin') || pathname.startsWith('/secretary')) return null;
+  // Hide nav only on admin pages
+  if (pathname.startsWith('/admin')) return null;
 
   const tabs = user?.role === 'secretary' 
     ? [
         { icon: '🏠', label: 'الرئيسية', href: '/' },
         { icon: '📋', label: 'لوحتي', href: '/secretary' },
-        { icon: '👤', label: 'حسابي', href: '/auth' },
+        { icon: '👤', label: 'حسابي', href: '/profile' },
       ]
     : [
         { icon: '🏠', label: 'الرئيسية', href: '/' },

@@ -220,7 +220,7 @@ export default function SecretaryDashboard() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-10">
+        <div className="flex-1 overflow-y-auto p-6 md:p-10 pb-24 md:pb-10">
           
           {/* Missing Doctor Warning */}
           {doctors.length === 0 && (
