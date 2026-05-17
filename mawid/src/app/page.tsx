@@ -184,15 +184,7 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="text-center py-6 pb-12">
-          <button 
-            onClick={() => router.push('/admin/login')}
-            className="bg-transparent border-none text-[#cbd5e1] text-[11px] font-bold cursor-pointer"
-          >
-            ⚙️ دخول الإدارة
-          </button>
-        </div>
-      </div>
+      
 
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes adProg { from { width: 0; } to { width: 100%; } }
