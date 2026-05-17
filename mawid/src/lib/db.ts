@@ -135,6 +135,10 @@ export const updateAppointmentStatus = async (id: string, status: Appointment['s
   await update(ref(db, `appointments/${id}`), { status });
 };
 
+export const deleteAppointment = async (id: string) => {
+  await remove(ref(db, `appointments/${id}`));
+};
+
 export const checkSlotAvailability = async (doctorId: string, date: string, time: string): Promise<boolean> => {
   const snapshot = await get(ref(db, 'appointments'));
   if (!snapshot.exists()) return true;

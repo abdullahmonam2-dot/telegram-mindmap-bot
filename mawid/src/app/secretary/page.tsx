@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
 import {
-  getDoctorsBySecretary, addDoctor, updateDoctor,
-  updateAppointmentStatus, listenToSecretaryAppointments
+  getDoctorsBySecretary, addDoctor, updateDoctor, deleteDoctor,
+  updateAppointmentStatus, deleteAppointment, listenToSecretaryAppointments
 } from '@/lib/db';
 import { Doctor, Appointment, SPECIALTIES, Specialty, CITIES } from '@/lib/types';
 import { formatWhatsAppLink } from '@/lib/utils';
@@ -22,10 +22,11 @@ import {
   Check,
   X,
   Clock,
-  Bell
+  Bell,
+  Stethoscope
 } from 'lucide-react';
 
-type Tab = 'requests' | 'appointments';
+type Tab = 'requests' | 'appointments' | 'doctors';
 
 const STATUS_CONFIG = {
   pending:   { label: 'قيد الانتظار', color: 'orange' },
@@ -73,9 +74,15 @@ export default function SecretaryDashboard() {
 
           unsubscribe = listenToSecretaryAppointments(doctorIds, (updatedApts) => {
             setAppointments(prev => {
-              const newestApt = updatedApts[0];
-              if (initialLoadDone.current && newestApt && !prev.some(a => a.id === newestApt.id)) {
-                // Background sound triggers here if implemented
+              const newestApt = updatedApts.find(a => !prev.some(p => p.id === a.id));
+              if (initialLoadDone.current && newestApt && newestApt.status === 'pending') {
+                playNotificationSound();
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  new Notification('حجز جديد قيد الانتظار!', {
+                    body: `المريض: ${newestApt.patientName}\nالتاريخ: ${newestApt.date} - الوقت: ${newestApt.time}`,
+                    icon: '/favicon.ico'
+                  });
+                }
               }
               initialLoadDone.current = true;
               return updatedApts;
@@ -139,6 +146,44 @@ export default function SecretaryDashboard() {
     }
   };
 
+  const handleDeleteAppointment = async (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذا الحجز نهائياً من النظام؟')) {
+      try {
+        await deleteAppointment(id);
+        setAppointments(prev => prev.filter(a => a.id !== id));
+        showToast('تم حذف الحجز نهائياً بنجاح');
+      } catch {
+        showToast('فشل حذف الحجز');
+      }
+    }
+  };
+
+  const handleDeleteDoctor = async (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذا الطبيب وكل بياناته نهائياً من العيادة؟')) {
+      try {
+        await deleteDoctor(id);
+        setDoctors(prev => prev.filter(d => d.id !== id));
+        showToast('تم حذف الطبيب بنجاح');
+      } catch {
+        showToast('فشل حذف الطبيب');
+      }
+    }
+  };
+
+  const toggleDoctorStatus = async (doctor: Doctor) => {
+    try {
+      const updatedFields = {
+        isClosed: !doctor.isClosed,
+        closedMessage: !doctor.isClosed ? 'الطبيب مسافر / غير متواجد حالياً' : ''
+      };
+      await updateDoctor(doctor.id, updatedFields);
+      setDoctors(prev => prev.map(d => d.id === doctor.id ? { ...d, ...updatedFields } : d));
+      showToast(updatedFields.isClosed ? '🚫 تم إغلاق حجوزات الطبيب (الطبيب غير متواجد)' : '✅ تم تفعيل حجوزات الطبيب بنجاح');
+    } catch {
+      showToast('فشل تحديث حالة الطبيب');
+    }
+  };
+
   if (loading || fetching) return (
     <div className="min-h-screen bg-[#fcfdfe] p-10">
       <DashboardSkeleton />
@@ -186,19 +231,18 @@ export default function SecretaryDashboard() {
             <h1 className="font-extrabold text-xl text-slate-900">
               {activeTab === 'requests' && 'الطلبات الجديدة'}
               {activeTab === 'appointments' && 'إدارة المواعيد'}
+              {activeTab === 'doctors' && 'إدارة الأطباء'}
             </h1>
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            {doctors.length > 0 && (
-              <button 
-                onClick={() => { setEditingDoctor(doctors[0]); setShowDoctorModal(true); }}
-                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-xl font-bold text-[10px] hover:bg-blue-100 transition-colors"
-              >
-                <Edit2 className="w-3 h-3" />
-                إعدادات العيادة
-              </button>
-            )}
+            <button 
+              onClick={() => { setEditingDoctor(null); setShowDoctorModal(true); }}
+              className="hidden sm:flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-xl font-bold text-[10px] hover:bg-blue-100 transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              إضافة طبيب جديد
+            </button>
             <button 
               onClick={async () => {
                 playNotificationSound();
@@ -342,8 +386,13 @@ export default function SecretaryDashboard() {
                               <a href={`https://wa.me/${apt.patientPhone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white transition-all shadow-sm">
                                 <MessageCircle className="w-4 h-4" />
                               </a>
-                              <button onClick={() => updateStatus(apt.id, 'cancelled')} className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100" title="إلغاء الموعد">
-                                <X className="w-4 h-4" />
+                              {apt.status !== 'cancelled' && (
+                                <button onClick={() => updateStatus(apt.id, 'cancelled')} className="p-2 rounded-xl bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white transition-all shadow-sm border border-orange-100" title="إلغاء الحجز">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button onClick={() => handleDeleteAppointment(apt.id)} className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100" title="حذف الحجز نهائياً">
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </td>
@@ -353,6 +402,85 @@ export default function SecretaryDashboard() {
                   </tbody>
                 </table>
               </div>
+            </motion.div>
+          )}
+
+          {/* TAB: DOCTORS (Doctor Management) */}
+          {activeTab === 'doctors' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-extrabold text-slate-800">إدارة أطباء العيادة ({doctors.length})</h2>
+                <button onClick={() => { setEditingDoctor(null); setShowDoctorModal(true); }} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-100 flex items-center gap-2 active:scale-95 transition-all">
+                  <Plus className="w-4 h-4" /> إضافة طبيب جديد
+                </button>
+              </div>
+              
+              {doctors.length === 0 ? (
+                <div className="text-center py-20 bg-white rounded-[40px] border border-slate-50">
+                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Stethoscope className="w-10 h-10 text-slate-200" />
+                  </div>
+                  <p className="font-bold text-slate-400">لا يوجد أطباء مسجلين حالياً</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {doctors.map(doc => (
+                    <div key={doc.id} className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <p className="font-extrabold text-slate-900 text-lg mb-1">{doc.nameAr}</p>
+                            <p className="text-xs font-bold text-blue-500">{doc.specialtyAr}</p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-lg text-[10px] font-bold ${doc.isClosed ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-green-50 text-green-600 border border-green-100'}`}>
+                            {doc.isClosed ? '🚫 غير متواجد / مسافر' : '✅ متاح للحجز'}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-2 mb-6">
+                          <p className="text-xs font-bold text-slate-500">📍 العيادة: <span className="text-slate-700">{doc.clinicAr || 'غير محدد'} ({doc.cityAr})</span></p>
+                          <p className="text-xs font-bold text-slate-500">📞 الهاتف: <span className="text-slate-700" dir="ltr">{doc.phone}</span></p>
+                          <p className="text-xs font-bold text-slate-500">💵 سعر الكشفية: <span className="text-slate-700">{doc.fee} دينار</span></p>
+                          
+                          {doc.isClosed && doc.closedMessage && (
+                            <div className="mt-3 p-3 bg-orange-50/50 border border-orange-100 rounded-xl">
+                              <p className="text-[10px] font-black text-orange-800">✉️ رسالة التنبيه للمرضى:</p>
+                              <p className="text-xs font-bold text-orange-700 mt-0.5">{doc.closedMessage}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 border-t border-slate-50 pt-4 mt-auto">
+                        <button 
+                          onClick={() => toggleDoctorStatus(doc)}
+                          className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
+                            doc.isClosed 
+                              ? 'bg-green-50 text-green-600 hover:bg-green-100' 
+                              : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                          }`}
+                        >
+                          {doc.isClosed ? 'تفعيل الحجوزات' : 'إغلاق (مسافر)'}
+                        </button>
+                        <button 
+                          onClick={() => { setEditingDoctor(doc); setShowDoctorModal(true); }}
+                          className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white transition-all shadow-sm active:scale-95"
+                          title="تعديل بيانات الطبيب"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteDoctor(doc.id)}
+                          className="p-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm active:scale-95"
+                          title="حذف الطبيب نهائياً"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           )}
 

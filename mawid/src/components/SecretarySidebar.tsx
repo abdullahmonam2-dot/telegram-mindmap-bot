@@ -4,7 +4,8 @@ import {
   CalendarCheck, 
   Bell, 
   LogOut,
-  X
+  X,
+  Stethoscope
 } from 'lucide-react';
 
 import { useAuth } from '@/lib/auth-context';
@@ -19,6 +20,7 @@ interface SidebarProps {
 const MENU_ITEMS = [
   { id: 'requests', label: 'الطلبات الجديدة', icon: <Bell className="w-5 h-5" /> },
   { id: 'appointments', label: 'إدارة المواعيد', icon: <CalendarCheck className="w-5 h-5" /> },
+  { id: 'doctors', label: 'إدارة الأطباء', icon: <Stethoscope className="w-5 h-5" /> },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab, onClose }: SidebarProps) {
