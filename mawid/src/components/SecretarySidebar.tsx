@@ -1,12 +1,8 @@
 'use client';
 import { motion } from 'framer-motion';
 import { 
-  LayoutDashboard, 
-  Users, 
   CalendarCheck, 
-  Clock, 
   Bell, 
-  Settings, 
   LogOut,
   X
 } from 'lucide-react';
@@ -18,10 +14,8 @@ interface SidebarProps {
 }
 
 const MENU_ITEMS = [
-  { id: 'overview', label: 'نظرة عامة', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { id: 'appointments', label: 'المواعيد', icon: <CalendarCheck className="w-5 h-5" /> },
-  { id: 'doctors', label: 'الأطباء', icon: <Users className="w-5 h-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="w-5 h-5" /> },
+  { id: 'requests', label: 'الطلبات الجديدة', icon: <Bell className="w-5 h-5" /> },
+  { id: 'appointments', label: 'إدارة المواعيد', icon: <CalendarCheck className="w-5 h-5" /> },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab, onClose }: SidebarProps) {
