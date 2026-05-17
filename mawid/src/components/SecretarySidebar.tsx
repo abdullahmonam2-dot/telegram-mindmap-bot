@@ -7,6 +7,9 @@ import {
   X
 } from 'lucide-react';
 
+import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
+
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: any) => void;
@@ -19,6 +22,14 @@ const MENU_ITEMS = [
 ];
 
 export default function Sidebar({ activeTab, setActiveTab, onClose }: SidebarProps) {
+  const { signOut } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/');
+  };
+
   return (
     <aside className="h-full bg-white border-l border-slate-50 flex flex-col p-6 overflow-y-auto">
       {/* Mobile Close */}
@@ -66,7 +77,10 @@ export default function Sidebar({ activeTab, setActiveTab, onClose }: SidebarPro
 
       {/* Logout */}
       <div className="pt-8 border-t border-slate-100">
-        <button className="w-full flex items-center gap-4 px-5 py-4 rounded-[20px] font-bold text-sm text-red-500 hover:bg-red-50 transition-all">
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center gap-4 px-5 py-4 rounded-[20px] font-bold text-sm text-red-500 hover:bg-red-50 transition-all"
+        >
           <LogOut className="w-5 h-5" />
           <span>تسجيل الخروج</span>
         </button>

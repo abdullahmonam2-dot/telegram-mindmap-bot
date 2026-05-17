@@ -8,8 +8,8 @@ export default function Navbar() {
   const { user } = useAuth();
   const pathname = usePathname();
 
-  // Hide nav on admin pages
-  if (pathname.startsWith('/admin')) return null;
+  // Hide nav on admin and secretary pages
+  if (pathname.startsWith('/admin') || pathname.startsWith('/secretary')) return null;
 
   const tabs = user?.role === 'secretary' 
     ? [
@@ -21,7 +21,7 @@ export default function Navbar() {
         { icon: '🏠', label: 'الرئيسية', href: '/' },
         { icon: '🔍', label: 'بحث', href: '/search' },
         { icon: '📅', label: 'مواعيدي', href: '/my-appointments' },
-        { icon: '👤', label: user ? 'حسابي' : 'دخول', href: '/auth' },
+        { icon: '👤', label: user ? 'حسابي' : 'دخول', href: user ? '/profile' : '/auth' },
       ];
 
   return (
