@@ -158,6 +158,15 @@ function AuthContent() {
                   placeholder="XXXXXX-XXXX"
                   required
                 />
+                <a 
+                  href="https://wa.me/9647857237105" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-right text-[11px] font-extrabold text-[#0ea5e9] hover:underline flex items-center gap-1 mt-1"
+                >
+                  <span>💬</span>
+                  اضغط هنا للتواصل مع الإدارة والحصول على الكود (07857237105)
+                </a>
               </>
             )}
           </>
@@ -222,17 +231,6 @@ function AuthContent() {
           {tab === 'login' ? 'إنشاء حساب جديد' : 'لديك حساب؟ سجل دخولك'}
         </button>
       </form>
-
-      {/* Admin Contact Link */}
-      <a 
-        href="https://wa.me/9647857237105" 
-        target="_blank" 
-        rel="noopener noreferrer"
-        className="text-center text-[12px] font-extrabold text-[#0ea5e9] mt-4 hover:underline flex items-center justify-center gap-2"
-      >
-        <span>💬</span>
-        تواصل مع الإدارة للحصول على الكود (07857237105)
-      </a>
 
       {/* FORGOT PASSWORD MODAL */}
       <AnimatePresence>
