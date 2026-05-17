@@ -343,7 +343,8 @@ export default function SecretaryDashboard() {
           {/* TAB: APPOINTMENTS (All other) */}
           {activeTab === 'appointments' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              <div className="bg-white rounded-[32px] border border-slate-50 shadow-sm overflow-hidden">
+              {/* Desktop Table View */}
+              <div className="hidden md:block bg-white rounded-[32px] border border-slate-50 shadow-sm overflow-hidden">
                 <table className="w-full text-right text-sm">
                   <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[10px]">
                     <tr>
@@ -401,6 +402,68 @@ export default function SecretaryDashboard() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card List View */}
+              <div className="block md:hidden space-y-4">
+                {otherAppointments.length === 0 ? (
+                  <div className="text-center py-20 bg-white rounded-[32px] border border-slate-50">
+                    <p className="font-bold text-slate-400">لا توجد مواعيد سابقة أو مؤكدة</p>
+                  </div>
+                ) : (
+                  otherAppointments.map((apt) => (
+                    <div key={apt.id} className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm space-y-4 relative overflow-hidden">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold">
+                            {apt.patientName.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-slate-900">{apt.patientName}</p>
+                            <p className="text-[10px] text-slate-400" dir="ltr">{apt.patientPhone}</p>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-lg text-[10px] font-bold bg-${STATUS_CONFIG[apt.status].color}-50 text-${STATUS_CONFIG[apt.status].color}-500 border border-${STATUS_CONFIG[apt.status].color}-100`}>
+                          {STATUS_CONFIG[apt.status].label}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-50 rounded-xl p-3 flex justify-between text-xs font-bold text-slate-700">
+                        <span className="flex items-center gap-1.5">📅 {apt.date}</span>
+                        <span className="flex items-center gap-1.5">⏰ {apt.time}</span>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-50">
+                        <span className="text-[10px] text-slate-400 font-bold ml-auto">طبيب العيادة: {apt.doctorNameAr}</span>
+                        <a 
+                          href={`https://wa.me/${apt.patientPhone.replace(/[^0-9]/g, '')}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white transition-all shadow-sm"
+                          title="تواصل واتساب"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </a>
+                        {apt.status !== 'cancelled' && (
+                          <button 
+                            onClick={() => updateStatus(apt.id, 'cancelled')} 
+                            className="p-2.5 rounded-xl bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white transition-all shadow-sm border border-orange-100" 
+                            title="إلغاء الحجز"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleDeleteAppointment(apt.id)} 
+                          className="p-2.5 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100" 
+                          title="حذف الحجز نهائياً"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </motion.div>
           )}

@@ -272,9 +272,9 @@ export const cleanupOldAppointments = async () => {
       const aptDate = new Date(apt.date);
       aptDate.setHours(0, 0, 0, 0);
       
-      // Delete if appointment date was more than 1 day ago
-      // (e.g., if today is May 17, and apt was May 15, it's > 1 day old)
-      return (now.getTime() - aptDate.getTime()) > oneDayInMs;
+      // Delete if appointment date was 1 day ago or more
+      // (e.g., if today is May 17, and apt was May 16, it's >= 1 day old and will be deleted)
+      return (now.getTime() - aptDate.getTime()) >= oneDayInMs;
     }).map(id => remove(ref(db, `appointments/${id}`)));
     
     if (deletions.length > 0) {
