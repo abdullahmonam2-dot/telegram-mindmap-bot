@@ -85,10 +85,16 @@ function AuthContent() {
     e.preventDefault();
     setForgotStatus('sending');
     try {
-      const { createPasswordResetRequest } = await import('@/lib/db');
-      await createPasswordResetRequest(forgotPhone, forgotName);
-      setForgotStatus('success');
-    } catch (err) {
+      const { createRecoveryRequestServer } = await import('@/actions/admin-actions');
+      const res = await createRecoveryRequestServer(forgotPhone, forgotName);
+      if (res.success) {
+        setForgotStatus('success');
+      } else {
+        alert('فشل الإرسال: ' + res.error);
+        setForgotStatus('idle');
+      }
+    } catch (err: any) {
+      alert('حدث خطأ أثناء الاتصال: ' + err.message);
       setForgotStatus('idle');
     }
   };

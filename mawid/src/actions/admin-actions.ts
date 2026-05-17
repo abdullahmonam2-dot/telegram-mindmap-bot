@@ -55,3 +55,23 @@ export async function deleteUserFromAuth(uid: string) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Creates a password reset recovery request securely on the server to bypass client-side database rules.
+ */
+export async function createRecoveryRequestServer(phone: string, name: string) {
+  try {
+    const id = `reset-${Date.now()}`;
+    await admin.database().ref(`passwordResets/${id}`).set({
+      id,
+      phone,
+      name,
+      createdAt: new Date().toISOString(),
+      status: 'pending'
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error creating recovery request:', error);
+    return { success: false, error: error.message };
+  }
+}
