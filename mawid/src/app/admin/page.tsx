@@ -90,7 +90,21 @@ export default function AdminPage() {
     } else {
       alert('فشل تغيير كلمة المرور: ' + res.error);
     }
-    setLoading(false);
+  };
+
+  const handleDeleteResetRequest = async (id: string) => {
+    if (confirm('هل أنت متأكد من حذف طلب استعادة الحساب هذا؟')) {
+      setLoading(true);
+      try {
+        const { deletePasswordResetRequest } = require('@/lib/db');
+        await deletePasswordResetRequest(id);
+        await loadData();
+      } catch (err) {
+        alert('فشل حذف الطلب');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -350,6 +364,115 @@ export default function AdminPage() {
                           <tr>
                             <td colSpan={5} className="px-8 py-24 text-center text-slate-300 font-bold">
                               لا يوجد مستخدمون لعرضهم حالياً
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* RESETS TAB (Password Recovery Requests) */}
+            {tab === 'resets' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-extrabold text-slate-800">طلبات استعادة الحساب ({resets.length})</h2>
+                  <button 
+                    onClick={loadData}
+                    className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl text-slate-500 hover:text-blue-600 transition-colors shadow-sm"
+                    title="تحديث البيانات"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="bg-white rounded-[40px] border border-slate-50 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right min-w-[800px]">
+                      <thead className="bg-slate-50/50 text-slate-400 font-bold text-[11px] uppercase tracking-widest">
+                        <tr>
+                          <th className="px-8 py-6">الاسم الكامل</th>
+                          <th className="px-8 py-6">رقم الهاتف</th>
+                          <th className="px-8 py-6">تاريخ الطلب</th>
+                          <th className="px-8 py-6">الحالة</th>
+                          <th className="px-8 py-6 text-center">الإجراءات</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {resets && resets.length > 0 ? (
+                          resets.map((r) => {
+                            const matchedUser = users.find(u => u.phone === r.phone);
+                            return (
+                              <tr key={r.id} className="hover:bg-slate-50/30 transition-colors">
+                                <td className="px-8 py-6">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-xl font-bold">
+                                      {r.name?.charAt(0) || 'U'}
+                                    </div>
+                                    <div>
+                                      <p className="font-extrabold text-slate-900">{r.name}</p>
+                                      {matchedUser ? (
+                                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold">حساب مسجل</span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-[9px] font-bold">غير مسجل بالرقم</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-8 py-6">
+                                  <div className="flex items-center gap-2 font-bold text-slate-600" dir="ltr">
+                                    <Phone className="w-4 h-4 text-slate-300" />
+                                    <span>{r.phone}</span>
+                                  </div>
+                                </td>
+                                <td className="px-8 py-6 text-sm font-bold text-slate-400">
+                                  {r.createdAt ? new Date(r.createdAt).toLocaleString('ar-EG') : '---'}
+                                </td>
+                                <td className="px-8 py-6">
+                                  <span className="px-4 py-1.5 rounded-xl text-[10px] font-black tracking-wide bg-orange-100 text-orange-700 animate-pulse">
+                                    طلب معلق ⚠️
+                                  </span>
+                                </td>
+                                <td className="px-8 py-6">
+                                  <div className="flex justify-center gap-2">
+                                    {matchedUser && (
+                                      <button 
+                                        onClick={() => setResettingUser({ uid: matchedUser.uid, name: r.name, phone: r.phone })}
+                                        className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1"
+                                        title="تغيير كلمة المرور"
+                                      >
+                                        <Key className="w-4 h-4" /> تغيير الرمز
+                                      </button>
+                                    )}
+                                    <button 
+                                      onClick={() => {
+                                        const msg = `أهلاً ${r.name}، لقد تلقينا طلب استعادة الحساب الخاص بك. كيف يمكنني مساعدتك؟`;
+                                        const { formatWhatsAppLink } = require('@/lib/utils');
+                                        window.open(formatWhatsAppLink(r.phone, msg), '_blank');
+                                      }}
+                                      className="px-4 py-2 bg-green-50 text-green-600 hover:bg-green-500 hover:text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1"
+                                      title="تواصل واتساب"
+                                    >
+                                      <Phone className="w-4 h-4" /> تواصل
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteResetRequest(r.id)}
+                                      className="p-2 text-red-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                      title="حذف الطلب"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="px-8 py-24 text-center text-slate-300 font-bold">
+                              لا توجد طلبات استعادة معلقة حالياً 🎉
                             </td>
                           </tr>
                         )}
