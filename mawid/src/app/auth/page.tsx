@@ -47,8 +47,8 @@ function AuthContent() {
     }
 
     if (tab === 'signup' && role === 'secretary') {
-      const { validateAndUseActivationCode } = await import('@/lib/db');
-      const isValid = await validateAndUseActivationCode(activationCode);
+      const { validateAndUseActivationCodeServer } = await import('@/actions/admin-actions');
+      const isValid = await validateAndUseActivationCodeServer(activationCode);
       if (!isValid) {
         setError('كود التفعيل غير صحيح أو مستخدم مسبقاً. يرجى التواصل مع الإدارة.');
         setSubmitting(false);

@@ -3,11 +3,10 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { ref, get, remove, update, onValue } from 'firebase/database';
-import { Users, Stethoscope, Calendar, Trash2, Key, MessageCircle, CheckCircle, XCircle, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Users, Stethoscope, Calendar, Trash2, Key, MessageCircle, CheckCircle, XCircle, ChevronDown, ChevronUp, AlertTriangle, Megaphone, Plus } from 'lucide-react';
+import { verifyAdminPassword } from '@/actions/auth';
 
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'mawid@admin2025';
-
-type Tab = 'users' | 'doctors' | 'appointments' | 'recovery';
+type Tab = 'users' | 'doctors' | 'appointments' | 'recovery' | 'ads';
 
 export default function AdminDashboard() {
   const [authed, setAuthed] = useState(false);
@@ -18,6 +17,7 @@ export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [recoveryReqs, setRecoveryReqs] = useState<any[]>([]);
+  const [ads, setAds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newCode, setNewCode] = useState('');
   const [codes, setCodes] = useState<string[]>([]);
@@ -29,8 +29,18 @@ export default function AdminDashboard() {
   const [resetMsg, setResetMsg] = useState('');
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('admin_authed');
-    if (stored === 'true') setAuthed(true);
+    import('@/lib/firebase').then(({ auth }) => {
+      import('firebase/auth').then(({ onAuthStateChanged }) => {
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            setAuthed(true);
+          } else {
+            setAuthed(false);
+            sessionStorage.removeItem('admin_authed');
+          }
+        });
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -86,17 +96,39 @@ export default function AdminDashboard() {
       }
     });
 
+    const unsub6 = onValue(ref(db, 'ads'), snap => {
+      if (snap.exists() && snap.val()) {
+        const val = snap.val();
+        const arr = Array.isArray(val) ? val : Object.values(val);
+        setAds(arr.filter(a => a && typeof a === 'object'));
+      } else {
+        setAds([]);
+      }
+    });
+
     setLoading(false);
-    return () => { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); };
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); };
   }, [authed]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD || password === 'mawid@admin2025') {
+    const res = await verifyAdminPassword(password);
+    if (res.success) {
+      if (res.token) {
+        const { signInWithCustomToken } = await import('firebase/auth');
+        const { auth } = await import('@/lib/firebase');
+        try {
+          await signInWithCustomToken(auth, res.token);
+        } catch (err) {
+          console.error("Firebase Auth sign in failed", err);
+          setError("خطأ في تسجيل الدخول مع Firebase.");
+          return;
+        }
+      }
       sessionStorage.setItem('admin_authed', 'true');
       setAuthed(true);
     } else {
-      setError('كلمة المرور غير صحيحة');
+      setError(res.error || 'كلمة المرور غير صحيحة');
     }
   };
 
@@ -128,6 +160,34 @@ export default function AdminDashboard() {
 
   const deleteCode = async (code: string) => {
     await remove(ref(db, `activationCodes/${code}`));
+  };
+
+  const addAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const title = formData.get('title') as string;
+    const description = formData.get('description') as string;
+    const imageUrl = formData.get('imageUrl') as string;
+    const linkUrl = formData.get('linkUrl') as string;
+    
+    if (!title || !description || !imageUrl) return;
+    
+    const id = `ad-${Date.now()}`;
+    try {
+      await update(ref(db), {
+        [`ads/${id}`]: { id, title, description, imageUrl, linkUrl: linkUrl || '', createdAt: Date.now() }
+      });
+      (e.target as HTMLFormElement).reset();
+      alert('✅ تم نشر الإعلان بنجاح!');
+    } catch (err: any) {
+      console.error('Ad write error:', err);
+      alert('❌ فشل النشر: ' + (err?.message || 'خطأ غير معروف') + '\n\nتحقق من إعدادات Firebase.');
+    }
+  };
+
+  const deleteAd = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا الإعلان؟')) return;
+    await remove(ref(db, `ads/${id}`));
   };
 
   const dismissRecovery = async (key: string) => {
@@ -216,6 +276,7 @@ export default function AdminDashboard() {
     { id: 'doctors', label: 'الأطباء', icon: Stethoscope, count: doctors.length },
     { id: 'appointments', label: 'المواعيد', icon: Calendar, count: appointments.length },
     { id: 'recovery', label: 'طلبات الاستعادة', icon: AlertTriangle, count: recoveryReqs.length },
+    { id: 'ads', label: 'الإعلانات', icon: Megaphone, count: ads.length },
   ] as const;
 
   return (
@@ -533,6 +594,55 @@ export default function AdminDashboard() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Ads Tab */}
+          {activeTab === 'ads' && (
+            <div className="space-y-6">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                <h2 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-blue-500" /> إضافة إعلان جديد
+                </h2>
+                <form onSubmit={addAd} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input name="title" required placeholder="العنوان (مثال: مختبر البركة)" className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500" />
+                  <input name="description" required placeholder="الوصف (الخصم أو العرض)" className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500" />
+                  <input name="imageUrl" required placeholder="رابط الصورة (Image URL)" className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500" dir="ltr" />
+                  <input name="linkUrl" placeholder="رابط توجيهي اختياري (واتساب...)" className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500" dir="ltr" />
+                  <button type="submit" className="md:col-span-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-3 font-black text-sm transition-colors">
+                    نشر الإعلان الآن
+                  </button>
+                </form>
+              </div>
+
+              <h2 className="text-lg font-black text-white mb-4">الإعلانات النشطة ({ads.length})</h2>
+              {ads.length === 0 ? (
+                <div className="text-center py-20 text-slate-600 font-bold">لا يوجد إعلانات حالياً</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {ads.map((ad) => (
+                    <div key={ad.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all">
+                      <div className="h-40 bg-slate-800 relative">
+                        <img src={ad.imageUrl} alt="" className="w-full h-full object-cover" />
+                        <button 
+                          onClick={() => deleteAd(ad.id)}
+                          className="absolute top-3 right-3 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="p-4">
+                        <p className="font-black text-white text-base mb-1">{ad.title}</p>
+                        <p className="text-slate-400 text-xs font-bold leading-relaxed line-clamp-2">{ad.description}</p>
+                        <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
+                          <span className="text-[10px] font-black text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-md">إعلان نشط</span>
+                          <span className="text-slate-500 text-[10px]">{new Date(ad.createdAt).toLocaleDateString('ar-IQ')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

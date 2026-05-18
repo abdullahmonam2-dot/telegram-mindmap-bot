@@ -92,9 +92,22 @@ export const deleteDoctor = async (id: string) => {
 
 // APPOINTMENTS
 export const addAppointment = async (appointment: Omit<Appointment, 'id'>) => {
+  let sequenceNumber = 1;
+  try {
+    const q = query(ref(db, 'appointments'), orderByChild('doctorId'), equalTo(appointment.doctorId));
+    const snap = await get(q);
+    if (snap.exists()) {
+      const all = Object.values(snap.val()) as Appointment[];
+      const forDate = all.filter(a => a.date === appointment.date && a.status !== 'cancelled');
+      sequenceNumber = forDate.length + 1;
+    }
+  } catch (e) {
+    console.error("Error calculating sequence number:", e);
+  }
+
   const newRef = push(ref(db, 'appointments'));
   const id = newRef.key!;
-  const aptWithId = { ...appointment, id };
+  const aptWithId = { ...appointment, id, sequenceNumber };
   await set(newRef, aptWithId);
   return id;
 };
@@ -112,23 +125,42 @@ export const getAppointmentsBySecretaryDoctors = async (doctorIds: string[]): Pr
   if (!snapshot.exists()) return [];
   const all = Object.values(snapshot.val()) as Appointment[];
   return all.filter(a => doctorIds.includes(a.doctorId)).sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 };
 
 export const listenToSecretaryAppointments = (doctorIds: string[], callback: (apts: Appointment[]) => void) => {
-  const appointmentsRef = ref(db, 'appointments');
-  return onValue(appointmentsRef, (snapshot) => {
-    if (!snapshot.exists()) {
-      callback([]);
-      return;
-    }
-    const all = Object.values(snapshot.val()) as Appointment[];
-    const filtered = all.filter(a => doctorIds.includes(a.doctorId)).sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  const unsubscribes: (() => void)[] = [];
+  const allAppointments = new Map<string, Appointment>();
+
+  const triggerCallback = () => {
+    const sorted = Array.from(allAppointments.values()).sort((a, b) => 
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
-    callback(filtered);
+    callback(sorted);
+  };
+
+  doctorIds.forEach(doctorId => {
+    const q = query(ref(db, 'appointments'), orderByChild('doctorId'), equalTo(doctorId));
+    const unsub = onValue(q, (snapshot) => {
+      // Clear old appointments for this doctor to handle deletions
+      for (const [key, apt] of allAppointments.entries()) {
+        if (apt.doctorId === doctorId) allAppointments.delete(key);
+      }
+      
+      if (snapshot.exists()) {
+        snapshot.forEach(child => {
+          allAppointments.set(child.key as string, child.val() as Appointment);
+        });
+      }
+      triggerCallback();
+    });
+    unsubscribes.push(unsub);
   });
+
+  return () => {
+    unsubscribes.forEach(unsub => unsub());
+  };
 };
 
 export const updateAppointmentStatus = async (id: string, status: Appointment['status']) => {
@@ -175,16 +207,17 @@ export const validateAndUseActivationCode = async (code: string): Promise<boolea
 };
 
 export const listenToPatientAppointments = (patientId: string, callback: (apts: Appointment[]) => void) => {
-  const appointmentsRef = ref(db, 'appointments');
-  return onValue(appointmentsRef, (snapshot) => {
+  const q = query(ref(db, 'appointments'), orderByChild('patientId'), equalTo(patientId));
+  return onValue(q, (snapshot) => {
     if (!snapshot.exists()) {
       callback([]);
       return;
     }
-    const all = Object.values(snapshot.val()) as Appointment[];
-    const filtered = all.filter(a => a.patientId === patientId).sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const filtered: Appointment[] = [];
+    snapshot.forEach(child => {
+      filtered.push(child.val() as Appointment);
+    });
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(filtered);
   });
 };

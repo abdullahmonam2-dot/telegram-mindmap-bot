@@ -117,6 +117,11 @@ export default function MyAppointmentsPage() {
                   <div>
                     <h3 className="font-bold text-slate-800">{apt.doctorNameAr}</h3>
                     <p className="text-blue-600 text-sm font-medium">{apt.doctorSpecialtyAr}</p>
+                    {apt.sequenceNumber && (
+                      <span className="inline-block mt-1 text-[11px] font-black text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-lg border border-orange-100">
+                        🔢 التسلسل في العيادة: {apt.sequenceNumber}
+                      </span>
+                    )}
                   </div>
                   <span className={`badge flex-shrink-0 text-xs font-bold px-3 py-1 rounded-full ${status.cls}`}>
                     {status.label}

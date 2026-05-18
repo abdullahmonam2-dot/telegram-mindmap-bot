@@ -48,6 +48,21 @@ export default function SecretaryDashboard() {
   const [toast, setToast] = useState('');
   const initialLoadDone = useRef(false);
 
+  const [isCustomSpecialty, setIsCustomSpecialty] = useState(false);
+  const [customSpecialtyText, setCustomSpecialtyText] = useState('');
+
+  useEffect(() => {
+    if (editingDoctor) {
+      const defaultAr = SPECIALTIES[editingDoctor.specialty as Specialty]?.ar || '';
+      const isCustom = editingDoctor.specialtyAr !== defaultAr;
+      setIsCustomSpecialty(isCustom);
+      setCustomSpecialtyText(editingDoctor.specialtyAr || defaultAr);
+    } else {
+      setIsCustomSpecialty(false);
+      setCustomSpecialtyText(SPECIALTIES['general']?.ar || 'طب عام');
+    }
+  }, [editingDoctor, showDoctorModal]);
+
   useEffect(() => {
     if (!loading && (!user || user.role !== 'secretary')) router.push('/auth');
     if (!user) return;
@@ -119,7 +134,12 @@ export default function SecretaryDashboard() {
   const updateStatus = async (id: string, status: Appointment['status']) => {
     try {
       const apt = appointments.find(a => a.id === id);
-      await updateAppointmentStatus(id, status);
+      
+      if (status === 'cancelled') {
+        await deleteAppointment(id);
+      } else {
+        await updateAppointmentStatus(id, status);
+      }
 
       if (apt && apt.patientPhone) {
         let msg = '';
@@ -136,7 +156,7 @@ export default function SecretaryDashboard() {
 
       if (status === 'cancelled') {
         setAppointments(prev => prev.filter(a => a.id !== id));
-        showToast('تم إلغاء الموعد وحذفه من القائمة وإرسال إشعار للمريض');
+        showToast('تم إلغاء الموعد وحذفه نهائياً وإرسال إشعار للمريض');
       } else {
         setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
         showToast(`تم تأكيد الموعد وإرسال إشعار واتساب للمريض`);
@@ -309,6 +329,11 @@ export default function SecretaryDashboard() {
                       </div>
                       
                       <div className="bg-slate-50 rounded-xl p-3 mb-6">
+                        {apt.sequenceNumber && (
+                          <p className="text-[11px] font-black text-orange-600 mb-2 border-b border-orange-100/50 pb-1.5 flex items-center gap-1">
+                            🔢 رقم التسلسل: {apt.sequenceNumber}
+                          </p>
+                        )}
                         <p className="text-xs font-bold text-slate-700 flex items-center gap-2 mb-1">
                           <Calendar className="w-4 h-4 text-blue-500" /> 
                           التاريخ: {apt.date}
@@ -369,7 +394,14 @@ export default function SecretaryDashboard() {
                               </div>
                               <div>
                                 <p className="font-bold text-slate-800">{apt.patientName}</p>
-                                <p className="text-[10px] text-slate-400" dir="ltr">{apt.patientPhone}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <p className="text-[10px] text-slate-400" dir="ltr">{apt.patientPhone}</p>
+                                  {apt.sequenceNumber && (
+                                    <span className="inline-block text-[9px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">
+                                      تسلسل: {apt.sequenceNumber}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -384,7 +416,7 @@ export default function SecretaryDashboard() {
                           </td>
                           <td className="px-8 py-6">
                             <div className="flex items-center justify-center gap-2">
-                              <a href={`https://wa.me/${apt.patientPhone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white transition-all shadow-sm">
+                              <a href={formatWhatsAppLink(apt.patientPhone)} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white transition-all shadow-sm">
                                 <MessageCircle className="w-4 h-4" />
                               </a>
                               {apt.status !== 'cancelled' && (
@@ -420,7 +452,14 @@ export default function SecretaryDashboard() {
                           </div>
                           <div>
                             <p className="font-extrabold text-slate-900">{apt.patientName}</p>
-                            <p className="text-[10px] text-slate-400" dir="ltr">{apt.patientPhone}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-[10px] text-slate-400" dir="ltr">{apt.patientPhone}</p>
+                              {apt.sequenceNumber && (
+                                <span className="inline-block text-[9px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">
+                                  تسلسل: {apt.sequenceNumber}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <span className={`px-3 py-1 rounded-lg text-[10px] font-bold bg-${STATUS_CONFIG[apt.status].color}-50 text-${STATUS_CONFIG[apt.status].color}-500 border border-${STATUS_CONFIG[apt.status].color}-100`}>
@@ -436,7 +475,7 @@ export default function SecretaryDashboard() {
                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-50">
                         <span className="text-[10px] text-slate-400 font-bold ml-auto">طبيب العيادة: {apt.doctorNameAr}</span>
                         <a 
-                          href={`https://wa.me/${apt.patientPhone.replace(/[^0-9]/g, '')}`} 
+                          href={formatWhatsAppLink(apt.patientPhone)} 
                           target="_blank" 
                           rel="noopener noreferrer" 
                           className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white transition-all shadow-sm"
@@ -576,12 +615,17 @@ export default function SecretaryDashboard() {
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const specialtyKey = formData.get('specialty') as Specialty;
+                const customText = formData.get('customSpecialtyAr')?.toString().trim();
+
                 const data: any = {
                   nameAr: formData.get('nameAr'),
-                  specialty: formData.get('specialty'),
-                  specialtyAr: SPECIALTIES[formData.get('specialty') as Specialty].ar,
+                  specialty: specialtyKey,
+                  specialtyAr: (isCustomSpecialty && customText) ? customText : (SPECIALTIES[specialtyKey]?.ar || 'طب عام'),
                   fee: Number(formData.get('fee')),
                   cityAr: formData.get('cityAr'),
+                  city: CITIES.find(c => c.ar === formData.get('cityAr'))?.en || '',
+                  name: formData.get('nameAr'),
                   clinicAr: formData.get('clinicAr'),
                   phone: formData.get('phone'),
                   bioAr: formData.get('bioAr'),
@@ -624,12 +668,47 @@ export default function SecretaryDashboard() {
                     <input name="nameAr" required defaultValue={editingDoctor?.nameAr} className="input-field" placeholder="د. علي السعدي" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-600">التخصص</label>
-                    <select name="specialty" required defaultValue={editingDoctor?.specialty} className="input-field">
+                    <label className="text-sm font-bold text-slate-600">التخصص الرئيسي</label>
+                    <select 
+                      name="specialty" 
+                      required 
+                      defaultValue={editingDoctor?.specialty || 'general'} 
+                      onChange={(e) => {
+                        const val = e.target.value as Specialty;
+                        setCustomSpecialtyText(SPECIALTIES[val]?.ar || '');
+                      }}
+                      className="input-field"
+                    >
                       {Object.entries(SPECIALTIES).map(([key, val]) => (
                         <option key={key} value={key}>{val.ar}</option>
                       ))}
                     </select>
+                  </div>
+
+                  {/* خيار تعديل نص التخصص كتابة للتوضيح والدقة */}
+                  <div className="space-y-2 md:col-span-2 bg-slate-50 p-4 rounded-[20px] border border-slate-100 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700">✍️ تخصيص نص التخصص يدوياً (مثال: أخصائي بورد...)</label>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={isCustomSpecialty}
+                          onChange={(e) => setIsCustomSpecialty(e.target.checked)}
+                          className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                      </label>
+                    </div>
+                    {isCustomSpecialty && (
+                      <input 
+                        name="customSpecialtyAr" 
+                        required 
+                        value={customSpecialtyText} 
+                        onChange={(e) => setCustomSpecialtyText(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-blue-500" 
+                        placeholder="مثال: أخصائي طب وجراحة العيون والشبكية" 
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-600">سعر الكشفية (دينار)</label>

@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Doctor, SPECIALTIES, Specialty } from '@/lib/types';
 import { getDoctor } from '@/lib/db';
-import { DEMO_DOCTORS, formatIQD, formatWhatsAppLink } from '@/lib/utils';
+import { DEMO_DOCTORS, formatIQD, formatWhatsAppLink, formatTime12 } from '@/lib/utils';
 import BookingModal from '@/components/BookingModal';
 import { useAuth } from '@/lib/auth-context';
 import { ProfileSkeleton } from '@/components/Skeletons';
@@ -136,8 +136,8 @@ export default function DoctorPage() {
           <div className="space-y-3 pt-2 border-t border-slate-50">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-500 font-medium">أوقات العمل</span>
-              <span className="font-bold text-slate-700">
-                {doctor.workingHours.start} — {doctor.workingHours.end}
+              <span className="font-bold text-slate-700" dir="ltr">
+                {formatTime12(doctor.workingHours.start)} — {formatTime12(doctor.workingHours.end)}
               </span>
             </div>
             <div className="flex items-start justify-between text-sm gap-4">

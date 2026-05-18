@@ -36,3 +36,7 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+.env*.local
+.env.prod
+.env.vercel.production
+.env.vercel.pulled.admin.production

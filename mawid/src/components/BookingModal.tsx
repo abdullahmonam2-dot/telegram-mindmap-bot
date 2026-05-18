@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
-import { addAppointment } from '@/lib/db';
+import { secureAddAppointment } from '@/actions/admin-actions';
 import { Doctor } from '@/lib/types';
 import { formatIQD, getNextDays } from '@/lib/utils';
 import { Calendar, CheckCircle2, X, User, Phone } from 'lucide-react';
@@ -33,7 +33,7 @@ export default function BookingModal({ doctor, onClose, onSuccess }: BookingModa
     setLoading(true);
     setError('');
     try {
-      await addAppointment({
+      const res = await secureAddAppointment({
         doctorId: doctor.id || 'unknown',
         doctorName: doctor.name || doctor.nameAr || '',
         doctorNameAr: doctor.nameAr || '',
@@ -47,7 +47,11 @@ export default function BookingModal({ doctor, onClose, onSuccess }: BookingModa
         status: 'pending',
         createdAt: new Date().toISOString(),
       });
-      setStep('done');
+      if (res.success) {
+        setStep('done');
+      } else {
+        setError(res.error || 'حدث خطأ أثناء الحجز. يرجى المحاولة مرة أخرى.');
+      }
     } catch {
       setError('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.');
     } finally {
